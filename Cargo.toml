@@ -5,22 +5,14 @@ edition = "2021"
 
 [dependencies]
 tokio = { version = "1.43.0", features = ["full"] }
-uuid = { version = "1.13.1", features = ["v8"] }
-chrono = "0.4.39"
 simple_logger = "5.0.0"
 colorful = "0.3.2"
 log = "0.4.26"
-rand = "0.9.0"
 anyhow = "1.0.96"
-async-trait = "0.1.86"
 bitflags = "2.8.0"
 
 # Web Interface
 rocket = { version = "0.5.1", features = ["tls"] }
-jsonwebtoken = "9.3.1"
-argon2 = "0.6.0-pre.1"
 
 # Database/ORM
 sea-orm = { version = "1.1.5", features = ["sqlx-postgres", "sqlx-sqlite", "runtime-tokio"] }
-sea-orm-migration = { version = "1.1.5", features = ["sqlx-postgres", "sqlx-sqlite", "runtime-tokio"] }
-sea-orm-rocket = "0.5.5"

@@ -14,7 +14,6 @@
 
 use std::fmt::{Display, Formatter};
 use std::io::{Cursor, Write};
-use rocket::form::validate::Len;
 use rocket::http::hyper::body::Buf;
 use tokio::io::AsyncReadExt;
 use crate::protocols::bgp::rfc4760::{AddressFamilyIdentifier, MultiprotocolExtensionsCapability, SubsequentAddrFamilyIdentifier};
@@ -30,7 +29,7 @@ pub enum Capability {
 impl Capability {
     pub(crate) async fn unpack_list(reader: &mut Cursor<&[u8]>) -> anyhow::Result<Vec<Self>> {
         let mut capabilities = Vec::new();
-        while reader.remaining() >= 2 {
+        while reader.has_remaining() {
             let kind = reader.read_u8().await?;
             let length = reader.read_u8().await?;
             capabilities.push(match kind {
@@ -41,7 +40,7 @@ impl Capability {
                     Self::MultiprotocolExtensions(MultiprotocolExtensionsCapability { address_family, subsequent_address_family })
                 }
                 _ => {
-                    let mut data = Vec::with_capacity(length as _);
+                    let mut data = vec![0; length as usize];
                     reader.read(&mut data).await?;
                     Self::Unknown { kind, data }
                 }
@@ -53,9 +52,9 @@ impl Capability {
     async fn pack<W: Write>(&self, writer: &mut W) -> anyhow::Result<()> {
         match self {
             Self::MultiprotocolExtensions(extensions) => {
-                writer.write_all(&1.to_be_bytes())?;
-                writer.write_all(&4.to_be_bytes())?;
-                writer.write_all(&u8::from(extensions.address_family).to_be_bytes())?;
+                writer.write_all(&1_u8.to_be_bytes())?;
+                writer.write_all(&4_u8.to_be_bytes())?;
+                writer.write_all(&u16::from(extensions.address_family).to_be_bytes())?;
                 writer.write_all(&[0u8; 1])?;
                 writer.write_all(&u8::from(extensions.subsequent_address_family).to_be_bytes())?;
             },

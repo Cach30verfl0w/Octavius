@@ -38,6 +38,9 @@ pub mod rfc3392;
 pub mod rfc4760;
 pub mod path_attr;
 
+#[cfg(test)]
+pub mod tests;
+
 use std::fmt::{Display, Formatter};
 use std::io::{Cursor, Read};
 use bitflags::bitflags;
@@ -159,15 +162,33 @@ impl OpenMessage {
     }
 }
 
-/// ## References
-/// - [UPDATE Message Format, Section 4.2 RFC 4271](https://datatracker.ietf.org/doc/html/rfc4271#section-4.3)
 bitflags! {
+    /// ## References
+    /// - [UPDATE Message Format, Section 4.2 RFC 4271](https://datatracker.ietf.org/doc/html/rfc4271#section-4.3)
     #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash, Copy)]
     pub struct PathAttributeFlags: u8 {
         const OPTIONAL        = 0b0001_0000;
         const TRANSITIVE      = 0b0010_0000;
         const PARTIAL         = 0b0100_0000;
         const EXTENDED_LENGTH = 0b1000_0000;
+    }
+}
+
+impl Display for PathAttributeFlags {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+        let flags = [
+            (PathAttributeFlags::OPTIONAL, "Optional"),
+            (PathAttributeFlags::TRANSITIVE, "Transitive"),
+            (PathAttributeFlags::PARTIAL, "Partial"),
+            (PathAttributeFlags::EXTENDED_LENGTH, "Extended length")
+        ];
+
+        let flags: Vec<&str> = flags.iter().filter_map(|&(flag, name)| if self.contains(flag) { Some(name) } else { None }).collect();
+        if flags.is_empty() {
+            write!(formatter, "None")
+        } else {
+            write!(formatter, "{}", flags.join(", "))
+        }
     }
 }
 
@@ -186,11 +207,11 @@ pub enum PathAttribute {
 impl PathAttribute {
     async fn unpack(reader: &mut Cursor<&[u8]>) -> anyhow::Result<Self> {
         let flags = PathAttributeFlags::from_bits(reader.read_u8().await?).ok_or(anyhow::anyhow!("Unable to get flags of path attribute"))?;
-        let type_code = reader.read_u8().await?;
+        let kind = reader.read_u8().await?;
         let length = reader.read_u8().await?;
         let reader = Read::take(&mut *reader, length as _).into_inner();
 
-        Ok(match type_code {
+        Ok(match kind {
             1 => Self::Origin(OriginAttribute::from(reader.read_u8().await?)),
             _ => {
                 let mut data = Vec::with_capacity(reader.remaining());
@@ -204,7 +225,7 @@ impl PathAttribute {
 impl Display for PathAttribute {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Origin(origin) => write!(formatter, "{}", origin),
+            Self::Origin(origin) => write!(formatter, "{:?}", origin),
             Self::Unknown { flags, kind, data } => write!(formatter, "Unknown {} bytes (Flags: {}, kind: {})", data.len(), flags, kind)
         }
     }
