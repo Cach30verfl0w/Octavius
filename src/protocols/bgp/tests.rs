@@ -47,6 +47,7 @@ fn read_update_message_1() {
         panic!("Test message isn't an update message");
     };
 
+    println!("{:#?}", update_message);
     let path_attributes = &update_message.path_attributes;
     assert_eq!(PathAttribute::Origin(Origin::IGP), path_attributes[0]);
 

@@ -45,7 +45,9 @@ pub mod rfc6793;
 #[cfg(test)]
 pub mod tests;
 
+use std::cmp::min;
 use std::fmt::{Display, Formatter};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use bitflags::bitflags;
 use nom::bytes::complete::take;
 use nom::error::{Error, ErrorKind};
@@ -57,6 +59,28 @@ use crate::protocols::bgp::params::OptionalParameter;
 use crate::protocols::bgp::path_attr::Origin;
 use crate::protocols::bgp::rfc1997::CommunitiesPathAttribute;
 use crate::protocols::bgp::rfc4760::{AddressFamily, MultiprotocolReachablePathAttribute, MultiprotocolUnreachablePathAttribute};
+
+pub(crate) fn unpack_address(input: &[u8], address_family: AddressFamily) -> IResult<&[u8], IpAddr> {
+    fn slice_to_array<const N: usize>(input: &[u8]) -> IResult<&[u8], [u8; N]> {
+        let mut array = [0u8; N];
+        let read = min(input.len(), N);
+        let (input, bytes) = take(read)(input)?;
+        array[0..read].copy_from_slice(bytes);
+        Ok((input, array))
+    }
+
+    match address_family {
+        AddressFamily::IPv4 => {
+            let (input, bytes) = slice_to_array::<4>(input)?;
+            Ok((input, IpAddr::V4(Ipv4Addr::from(bytes))))
+        },
+        AddressFamily::IPv6 => {
+            let (input, bytes) = slice_to_array::<16>(input)?;
+            Ok((input, IpAddr::V6(Ipv6Addr::from(bytes))))
+        },
+        _ => Err(nom::Err::Error(Error::new(input, ErrorKind::Complete)))
+    }
+}
 
 /// This enum is the implementation for processing all supported BGP messages transferred in a BGP session. This should be used when
 /// implementing a BGP receiver/sender.

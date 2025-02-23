@@ -16,12 +16,14 @@
 //! BGP. This extension allows the support for IPv6 addresses to the BGP router.
 
 use std::fmt::{Display, Formatter};
+use std::net::IpAddr;
 use nom::bytes::complete::take;
 use nom::IResult;
 use nom::multi::many0;
 use nom::number::complete::{be_u8, be_u16};
 use nom::Parser;
 use crate::prefix::Prefix;
+use crate::protocols::bgp::unpack_address;
 
 /// This enum represents all AFI (Address family identifier) supported by this BGP implementation, currently we only support IPv4 and IPv6.
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash, Copy)]
@@ -65,6 +67,7 @@ impl Display for AddressFamily {
         }
     }
 }
+
 
 
 /// This enum represents all SAFI (Subsequent address family identifier) supported by this BGP implementation, currently we only support
@@ -120,6 +123,22 @@ impl Display for SubsequentAddressFamily {
     }
 }
 
+#[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash, Copy)]
+pub struct MultiprotocolNextHop {
+    address: IpAddr,
+    link_local_address: IpAddr
+}
+
+impl MultiprotocolNextHop {
+    fn unpack(input: &[u8], address_family: AddressFamily) -> IResult<&[u8], Self> {
+        let (input, length) = be_u8(input)?;
+        let (input, data) = take(length)(input)?;
+        let (data, address) = unpack_address(data, address_family)?;
+        let (_, link_local_address) = unpack_address(data, address_family)?;
+        Ok((input, Self { address, link_local_address }))
+    }
+}
+
 /// This struct represents the capability parameter for the open message that indicates that this router supports the multiprotocol
 /// extensions for the following address and subsequent address family.
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash, Copy)]
@@ -156,25 +175,26 @@ impl MultiprotocolExtensionsCapability {
 pub struct MultiprotocolReachablePathAttribute {
     pub address_family: AddressFamily,
     pub subsequent_address_family: SubsequentAddressFamily,
-    pub next_hop_address: Vec<u8>,
+    pub next_hop_address: MultiprotocolNextHop,
     pub network_layer_reachability_information: Vec<Prefix>
 }
 
 impl MultiprotocolReachablePathAttribute {
     pub(crate) fn unpack(input: &[u8]) -> IResult<&[u8], Self> {
         let (input, address_family) = be_u16(input)?;
+        let address_family = AddressFamily::from(address_family);
+
         let (input, subsequent_address_family) = be_u8(input)?;
-        let (input, next_hop_address_length) = be_u8(input)?;
-        let (input, next_hop_address) = take(next_hop_address_length)(input)?;
+        let subsequent_address_family = SubsequentAddressFamily::from(subsequent_address_family);
+
+        let (input, next_hop_address) = MultiprotocolNextHop::unpack(input, address_family)?;
         let (nlri, _) = be_u8(input)?;
 
-        let address_family = AddressFamily::from(address_family);
-        let subsequent_address_family = SubsequentAddressFamily::from(subsequent_address_family);
         let (_, network_layer_reachability_information) = many0(|b| Prefix::unpack(b, address_family)).parse(nlri)?;
         Ok((&[], Self {
             address_family,
             subsequent_address_family,
-            next_hop_address: next_hop_address.to_vec(),
+            next_hop_address,
             network_layer_reachability_information
         }))
     }
