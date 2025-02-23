@@ -15,14 +15,16 @@
 use std::fmt::{Display, Formatter};
 use nom::bytes::complete::take;
 use nom::IResult;
-use nom::number::complete::be_u8;
+use nom::number::complete::{be_u8, be_u32};
 use crate::protocols::bgp::rfc4760::MultiprotocolExtensionsCapability;
+use crate::protocols::bgp::rfc6793::FourOctetASNumberSupportCapability;
 
 /// This enum implements a wrapper around [RFC 3392](https://datatracker.ietf.org/doc/html/rfc3392) that defines the capability
 /// advertisement with BGP-4.
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum Capability {
     MultiprotocolExtensions(MultiprotocolExtensionsCapability),
+    FourOctetASNumberSupport(FourOctetASNumberSupportCapability),
     Unknown { kind: u8, data: Vec<u8> }
 }
 
@@ -31,8 +33,10 @@ impl Capability {
         let (input, kind) = be_u8(input)?;
         let (input, length) = be_u8(input)?;
         let (input, data) = take(length)(input)?;
+        println!("{}", kind);
         Ok((input, match kind {
             1 => Self::MultiprotocolExtensions(MultiprotocolExtensionsCapability::unpack(data)?.1),
+            65 => Self::FourOctetASNumberSupport(FourOctetASNumberSupportCapability { as_number: be_u32(data)?.1 }),
             _ => Self::Unknown { kind, data: data.to_vec() }
         }))
     }
@@ -42,6 +46,7 @@ impl Display for Capability {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::MultiprotocolExtensions(extensions) => write!(formatter, "{}", extensions),
+            Self::FourOctetASNumberSupport(support) => write!(formatter, "AS{}", support.as_number),
             Self::Unknown { kind, data } => write!(formatter, "Unknown {} bytes (Kind: {})", data.len(), kind)
         }
     }

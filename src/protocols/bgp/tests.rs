@@ -15,6 +15,7 @@ fn read_open_message() {
         panic!("Test message isn't an open message");
     };
 
+    println!("{:#?}", open_message);
     assert_eq!(4, open_message.version);
     assert_eq!(65002, open_message.autonomous_system);
 

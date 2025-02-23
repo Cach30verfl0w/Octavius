@@ -25,7 +25,7 @@
 //! | [RFC 4370](https://datatracker.ietf.org/doc/html/rfc4360) | BGP Extended Communities Attribute    | Planned           | -/-       |
 //! | [RFC 4724](https://datatracker.ietf.org/doc/html/rfc4724) | Graceful Restart Mechanism for BGP    | Planned           | -/-       |
 //! | [RFC 4760](https://datatracker.ietf.org/doc/html/rfc4760) | Multiprotocol Extensions for BGP-4    | Fully implemented | [rfc4760] |
-//! | [RFC 6793](https://datatracker.ietf.org/doc/html/rfc6793) | BGP Support for Four-Octet AS Numbers | Planned           | -/-       |
+//! | [RFC 6793](https://datatracker.ietf.org/doc/html/rfc6793) | BGP Support for Four-Octet AS Numbers | Fully implemented | [rfc6793] |
 //! | [RFC 7313](https://datatracker.ietf.org/doc/html/rfc7313) | Enhanced Route Refresh Capability     | Planned           | -/-       |
 //! | [RFC 7606](https://datatracker.ietf.org/doc/html/rfc7606) | Revised Error Handling for BGP UPDATE | Planned           | -/-       |
 //! | [RFC 8955](https://datatracker.ietf.org/doc/html/rfc8955) | Dissemination of FlowSpec rules       | Potentially       | -/-       |
@@ -37,6 +37,7 @@
 pub mod params;
 pub mod rfc3392;
 pub mod rfc4760;
+pub mod rfc6793;
 pub mod path_attr;
 
 #[cfg(test)]
