@@ -16,12 +16,16 @@
 //! BGP. This extension allows the support for IPv6 addresses to the BGP router.
 
 use std::fmt::{Display, Formatter};
+use nom::bytes::complete::take;
 use nom::IResult;
+use nom::multi::many0;
 use nom::number::complete::{be_u8, be_u16};
+use nom::Parser;
+use crate::prefix::Prefix;
 
 /// This enum represents all AFI (Address family identifier) supported by this BGP implementation, currently we only support IPv4 and IPv6.
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash, Copy)]
-pub enum AddressFamilyIdentifier {
+pub enum AddressFamily {
     /// This value indicates IPv4 (Internet protocol version 4, 32 bits)
     IPv4,
 
@@ -32,7 +36,7 @@ pub enum AddressFamilyIdentifier {
     Unknown(u16)
 }
 
-impl From<u16> for AddressFamilyIdentifier {
+impl From<u16> for AddressFamily {
     fn from(value: u16) -> Self {
         match value {
             0x01 => Self::IPv4,
@@ -42,17 +46,17 @@ impl From<u16> for AddressFamilyIdentifier {
     }
 }
 
-impl From<AddressFamilyIdentifier> for u16 {
-    fn from(value: AddressFamilyIdentifier) -> Self {
+impl From<AddressFamily> for u16 {
+    fn from(value: AddressFamily) -> Self {
         match value {
-            AddressFamilyIdentifier::IPv4 => 0x01,
-            AddressFamilyIdentifier::IPv6 => 0x02,
-            AddressFamilyIdentifier::Unknown(value) => value
+            AddressFamily::IPv4 => 0x01,
+            AddressFamily::IPv6 => 0x02,
+            AddressFamily::Unknown(value) => value
         }
     }
 }
 
-impl Display for AddressFamilyIdentifier {
+impl Display for AddressFamily {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::IPv4 => write!(formatter, "IPv4"),
@@ -69,7 +73,7 @@ impl Display for AddressFamilyIdentifier {
 /// ## References
 /// [Subsequent Address Family Identifier, Section 6 RFC 4760](https://datatracker.ietf.org/doc/html/rfc4760#section-6)
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash, Copy)]
-pub enum SubsequentAddrFamilyIdentifier {
+pub enum SubsequentAddressFamily {
     /// This value indicates Unicast forwarding
     ///
     /// ## References
@@ -86,7 +90,7 @@ pub enum SubsequentAddrFamilyIdentifier {
     Unknown(u8)
 }
 
-impl From<u8> for SubsequentAddrFamilyIdentifier {
+impl From<u8> for SubsequentAddressFamily {
     fn from(value: u8) -> Self {
         match value {
             1 => Self::Unicast,
@@ -96,17 +100,17 @@ impl From<u8> for SubsequentAddrFamilyIdentifier {
     }
 }
 
-impl From<SubsequentAddrFamilyIdentifier> for u8 {
-    fn from(value: SubsequentAddrFamilyIdentifier) -> Self {
+impl From<SubsequentAddressFamily> for u8 {
+    fn from(value: SubsequentAddressFamily) -> Self {
         match value {
-            SubsequentAddrFamilyIdentifier::Unicast => 1,
-            SubsequentAddrFamilyIdentifier::Multicast => 2,
-            SubsequentAddrFamilyIdentifier::Unknown(value) => value
+            SubsequentAddressFamily::Unicast => 1,
+            SubsequentAddressFamily::Multicast => 2,
+            SubsequentAddressFamily::Unknown(value) => value
         }
     }
 }
 
-impl Display for SubsequentAddrFamilyIdentifier {
+impl Display for SubsequentAddressFamily {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Unicast => write!(formatter, "Unicast"),
@@ -120,8 +124,8 @@ impl Display for SubsequentAddrFamilyIdentifier {
 /// extensions for the following address and subsequent address family.
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash, Copy)]
 pub struct MultiprotocolExtensionsCapability {
-    pub address_family: AddressFamilyIdentifier,
-    pub subsequent_address_family: SubsequentAddrFamilyIdentifier,
+    pub address_family: AddressFamily,
+    pub subsequent_address_family: SubsequentAddressFamily,
 }
 
 impl Display for MultiprotocolExtensionsCapability {
@@ -136,8 +140,69 @@ impl MultiprotocolExtensionsCapability {
         let (input, _) = be_u8(input)?;
         let (input, subsequent_address_family) = be_u8(input)?;
         Ok((input, Self {
-            address_family: AddressFamilyIdentifier::from(address_family),
-            subsequent_address_family: SubsequentAddrFamilyIdentifier::from(subsequent_address_family)
+            address_family: AddressFamily::from(address_family),
+            subsequent_address_family: SubsequentAddressFamily::from(subsequent_address_family)
+        }))
+    }
+}
+
+/// This struct represents the multiprotocol reachable path attribute defined by the Multiprotocol Extensions for BGP as an optional and
+/// non-transitive attribute. It's used to advertise a route to a peer or to permit a router to advertise the network layer address of the
+/// router.
+///
+/// ## References
+/// - [Multiprotocol Reachable NLRI - MP_REACH_NLRI, Section 3 RFC 4760](https://datatracker.ietf.org/doc/html/rfc4760#section-3)
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MultiprotocolReachablePathAttribute {
+    pub address_family: AddressFamily,
+    pub subsequent_address_family: SubsequentAddressFamily,
+    pub next_hop_address: Vec<u8>,
+    pub network_layer_reachability_information: Vec<Prefix>
+}
+
+impl MultiprotocolReachablePathAttribute {
+    pub(crate) fn unpack(input: &[u8]) -> IResult<&[u8], Self> {
+        let (input, address_family) = be_u16(input)?;
+        let (input, subsequent_address_family) = be_u8(input)?;
+        let (input, next_hop_address_length) = be_u8(input)?;
+        let (input, next_hop_address) = take(next_hop_address_length)(input)?;
+        let (nlri, _) = be_u8(input)?;
+
+        let address_family = AddressFamily::from(address_family);
+        let subsequent_address_family = SubsequentAddressFamily::from(subsequent_address_family);
+        let (_, network_layer_reachability_information) = many0(|b| Prefix::unpack(b, address_family)).parse(nlri)?;
+        Ok((&[], Self {
+            address_family,
+            subsequent_address_family,
+            next_hop_address: next_hop_address.to_vec(),
+            network_layer_reachability_information
+        }))
+    }
+}
+
+/// This struct represents the multiprotocol unreachable NLRI path attribute defined by the Multiprotocol Extensions for BGP as an optional
+/// and non-transitive attribute for withdrawing multiple routes from the service.
+///
+/// ## References
+/// - [Multiprotocol Unreachable NLRI - MP_UNREACH_NLRI, Section 4 RFC 4760](https://datatracker.ietf.org/doc/html/rfc4760#section-4)
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MultiprotocolUnreachablePathAttribute {
+    pub address_family: AddressFamily,
+    pub subsequent_address_family: SubsequentAddressFamily,
+    pub network_layer_reachability_information: Vec<Prefix>
+}
+
+impl MultiprotocolUnreachablePathAttribute {
+    pub(crate) fn unpack(input: &[u8]) -> IResult<&[u8], Self> {
+        let (input, address_family) = be_u16(input)?;
+        let (nlri, subsequent_address_family) = be_u8(input)?;
+        let address_family = AddressFamily::from(address_family);
+        let subsequent_address_family = SubsequentAddressFamily::from(subsequent_address_family);
+        let (_, network_layer_reachability_information) = many0(|b| Prefix::unpack(b, address_family)).parse(nlri)?;
+        Ok((&[], Self {
+            address_family,
+            subsequent_address_family,
+            network_layer_reachability_information
         }))
     }
 }

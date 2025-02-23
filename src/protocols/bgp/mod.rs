@@ -18,6 +18,7 @@
 //!
 //! | RFC                                                       | Title                                 | Status            | File      |
 //! |-----------------------------------------------------------|---------------------------------------|-------------------|-----------|
+//! | [RFC 1997](https://datatracker.ietf.org/doc/html/rfc1997) | BGP Communities Attribute             | Planned           | -/-       |
 //! | [RFC 2918](https://datatracker.ietf.org/doc/html/rfc2918) | Route Refresh Capability for BGP-4    | Planned           | -/-       |
 //! | [RFC 3392](https://datatracker.ietf.org/doc/html/rfc3392) | Capabilities Advertisement with BGP-4 | Fully implemented | [rfc3392] |
 //! | [RFC 4271](https://datatracker.ietf.org/doc/html/rfc4271) | A Border Gateway Protocol 4 (BGP-4)   | Fully implemented | [self]    |
@@ -51,7 +52,7 @@ use nom::number::complete::{be_u16, be_u32, be_u8};
 use crate::prefix::Prefix;
 use crate::protocols::bgp::params::OptionalParameter;
 use crate::protocols::bgp::path_attr::Origin;
-use crate::protocols::bgp::rfc4760::AddressFamilyIdentifier;
+use crate::protocols::bgp::rfc4760::{AddressFamily, MultiprotocolReachablePathAttribute, MultiprotocolUnreachablePathAttribute};
 
 /// This enum is the implementation for processing all supported BGP messages transferred in a BGP session. This should be used when
 /// implementing a BGP receiver/sender.
@@ -149,22 +150,34 @@ impl Display for PathAttributeFlags {
 /// ## References
 /// - [UPDATE Message Format, Section 4.2 RFC 4271](https://datatracker.ietf.org/doc/html/rfc4271#section-4.3)
 /// - [Path Attributes, Section 5 RFC 4271](https://datatracker.ietf.org/doc/html/rfc4271#section-5)
-#[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PathAttribute {
     Origin(Origin),
+    MpReachableNLRI(MultiprotocolReachablePathAttribute),
+    MpUnreachableNLRI(MultiprotocolUnreachablePathAttribute),
     Unknown { flags: PathAttributeFlags, kind: u8, data: Vec<u8> }
 }
 
 impl PathAttribute {
     fn unpack(input: &[u8]) -> IResult<&[u8], Self> {
         let (input, flags) = be_u8(input)?;
+        let flags = PathAttributeFlags::from_bits(flags).ok_or(nom::Err::Error(Error::new(input, ErrorKind::Tag)))?;
         let (input, kind) = be_u8(input)?;
-        let (input, length) = be_u8(input)?;
+
+        // Following to the parser rules for path attributes in section 4.3 of RFC 4271, the length is an u16 when the extended length flag
+        // is applied. Otherwise, the length is just one byte.
+        let (input, length) = if !flags.contains(PathAttributeFlags::EXTENDED_LENGTH) {
+            let (input, length) = be_u8(input)?;
+            (input, length as u16)
+        } else { be_u16(input)? };
+
         let (input, data) = take(length)(input)?;
         Ok((input, match kind {
             1 => Self::Origin(Origin::from(be_u8(data)?.1)),
+            14 => Self::MpReachableNLRI(MultiprotocolReachablePathAttribute::unpack(data)?.1),
+            15 => Self::MpUnreachableNLRI(MultiprotocolUnreachablePathAttribute::unpack(data)?.1),
             _ => Self::Unknown {
-                flags: PathAttributeFlags::from_bits(flags).ok_or(nom::Err::Error(Error::new(input, ErrorKind::Tag)))?,
+                flags,
                 kind,
                 data: data.to_vec()
             }
@@ -176,6 +189,20 @@ impl Display for PathAttribute {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Origin(origin) => write!(formatter, "{:?}", origin),
+            Self::MpUnreachableNLRI(reachable) => write!(
+                formatter,
+                "{} newly unreachable {} addresses ({})",
+                reachable.network_layer_reachability_information.len(),
+                reachable.address_family,
+                reachable.subsequent_address_family
+            ),
+            Self::MpReachableNLRI(reachable) => write!(
+                formatter,
+                "{} newly reachable {} addresses ({})",
+                reachable.network_layer_reachability_information.len(),
+                reachable.address_family,
+                reachable.subsequent_address_family
+            ),
             Self::Unknown { flags, kind, data } => write!(formatter, "Unknown {} bytes (Flags: {}, kind: {})", data.len(), flags, kind)
         }
     }
@@ -202,8 +229,8 @@ impl UpdateMessage {
         let (_, path_attributes) = many0(PathAttribute::unpack).parse(path_attributes_bytes)?;
         Ok((&[], Self {
             path_attributes,
-            withdrawn_routes: many0(|b| Prefix::unpack(b, AddressFamilyIdentifier::IPv4)).parse(withdrawn_routes)?.1,
-            network_layer_reachability_information: many0(|b| Prefix::unpack(b, AddressFamilyIdentifier::IPv4)).parse(nlri)?.1
+            withdrawn_routes: many0(|b| Prefix::unpack(b, AddressFamily::IPv4)).parse(withdrawn_routes)?.1,
+            network_layer_reachability_information: many0(|b| Prefix::unpack(b, AddressFamily::IPv4)).parse(nlri)?.1
         }))
     }
 }

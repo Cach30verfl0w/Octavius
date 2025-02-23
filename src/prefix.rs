@@ -4,7 +4,7 @@ use std::str::FromStr;
 use nom::bytes::complete::take;
 use nom::IResult;
 use nom::number::complete::be_u8;
-use crate::protocols::bgp::rfc4760::AddressFamilyIdentifier;
+use crate::protocols::bgp::rfc4760::AddressFamily;
 
 fn slice_to_array<const N: usize>(slice: &[u8]) -> [u8; N] {
     let mut array = [0u8; N];
@@ -46,13 +46,13 @@ impl FromStr for Prefix {
 }
 
 impl Prefix {
-    pub(crate) fn unpack(input: &[u8], address_family: AddressFamilyIdentifier) -> IResult<&[u8], Self> {
+    pub(crate) fn unpack(input: &[u8], address_family: AddressFamily) -> IResult<&[u8], Self> {
         let (input, mask) = be_u8(input)?;
         let (input, prefix) = take((mask + 7) / 8)(input)?;
         match address_family {
-            AddressFamilyIdentifier::IPv4 => Ok((input, Self::IPv4 { addr: Ipv4Addr::from(slice_to_array::<4>(prefix)), mask })),
-            AddressFamilyIdentifier::IPv6 => Ok((input, Self::IPv6 { addr: Ipv6Addr::from(slice_to_array::<16>(prefix)), mask })),
-            AddressFamilyIdentifier::Unknown(_) => Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Complete))),
+            AddressFamily::IPv4 => Ok((input, Self::IPv4 { addr: Ipv4Addr::from(slice_to_array::<4>(prefix)), mask })),
+            AddressFamily::IPv6 => Ok((input, Self::IPv6 { addr: Ipv6Addr::from(slice_to_array::<16>(prefix)), mask })),
+            AddressFamily::Unknown(_) => Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Complete))),
         }
     }
 }

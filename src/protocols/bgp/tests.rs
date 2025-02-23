@@ -4,10 +4,10 @@ use crate::protocols::bgp::{BGPMessage, PathAttribute};
 use crate::protocols::bgp::params::OptionalParameter;
 use crate::protocols::bgp::rfc3392::Capability;
 use crate::protocols::bgp::path_attr::Origin;
-use crate::protocols::bgp::rfc4760::{AddressFamilyIdentifier, SubsequentAddrFamilyIdentifier};
+use crate::protocols::bgp::rfc4760::{AddressFamily, SubsequentAddressFamily};
 
-#[tokio::test]
-async fn read_open_message() {
+#[test]
+fn read_open_message() {
     let open_message_binary = include_bytes!("test-files/open_message.bin").as_slice();
 
     // Validate open message
@@ -25,22 +25,22 @@ async fn read_open_message() {
 
     match &capabilities[0] {
         Capability::MultiprotocolExtensions(extension) => {
-            assert_eq!(AddressFamilyIdentifier::IPv4, extension.address_family);
-            assert_eq!(SubsequentAddrFamilyIdentifier::Unicast, extension.subsequent_address_family);
+            assert_eq!(AddressFamily::IPv4, extension.address_family);
+            assert_eq!(SubsequentAddressFamily::Unicast, extension.subsequent_address_family);
         }
         _ => panic!("First capability isn't a multiprotocol extensions capability"),
     }
     match &capabilities[1] {
         Capability::MultiprotocolExtensions(extension) => {
-            assert_eq!(AddressFamilyIdentifier::IPv6, extension.address_family);
-            assert_eq!(SubsequentAddrFamilyIdentifier::Unicast, extension.subsequent_address_family);
+            assert_eq!(AddressFamily::IPv6, extension.address_family);
+            assert_eq!(SubsequentAddressFamily::Unicast, extension.subsequent_address_family);
         }
         _ => panic!("First capability isn't a multiprotocol extensions capability"),
     }
 }
 
-#[tokio::test]
-async fn read_update_message_1() {
+#[test]
+fn read_update_message_1() {
     let mut update_message_binary = include_bytes!("test-files/update_message_0.bin").as_slice();
     let BGPMessage::Update(update_message) = BGPMessage::unpack(&mut update_message_binary).unwrap().1 else {
         panic!("Test message isn't an update message");
@@ -51,4 +51,11 @@ async fn read_update_message_1() {
 
     let prefixes = &update_message.network_layer_reachability_information;
     assert_eq!(Prefix::from_str("192.168.100.0/24").unwrap(), prefixes[0]);
+}
+
+#[test]
+fn read_update_message_2() {
+    let mut update_message_binary = include_bytes!("test-files/update_message_1.bin").as_slice();
+    let messages = BGPMessage::unpack_many(&mut update_message_binary).unwrap().1;
+    println!("{:#?}", messages);
 }
