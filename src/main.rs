@@ -13,6 +13,7 @@
 // limitations under the License.
 
 pub mod protocols;
+pub mod prefix;
 
 use std::fs;
 use std::process::exit;

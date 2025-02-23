@@ -62,6 +62,7 @@ impl Display for AddressFamilyIdentifier {
     }
 }
 
+
 /// This enum represents all SAFI (Subsequent address family identifier) supported by this BGP implementation, currently we only support
 /// Unicast or Multicast.
 ///

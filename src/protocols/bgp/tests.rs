@@ -1,6 +1,9 @@
-use crate::protocols::bgp::BGPMessage;
+use std::str::FromStr;
+use crate::prefix::Prefix;
+use crate::protocols::bgp::{BGPMessage, PathAttribute};
 use crate::protocols::bgp::params::OptionalParameter;
 use crate::protocols::bgp::rfc3392::Capability;
+use crate::protocols::bgp::path_attr::Origin;
 use crate::protocols::bgp::rfc4760::{AddressFamilyIdentifier, SubsequentAddrFamilyIdentifier};
 
 #[tokio::test]
@@ -37,11 +40,15 @@ async fn read_open_message() {
 }
 
 #[tokio::test]
-async fn read_update_message() {
+async fn read_update_message_1() {
     let mut update_message_binary = include_bytes!("test-files/update_message_0.bin").as_slice();
     let BGPMessage::Update(update_message) = BGPMessage::unpack(&mut update_message_binary).unwrap().1 else {
         panic!("Test message isn't an update message");
     };
 
-    println!("{:#?}", update_message);
+    let path_attributes = &update_message.path_attributes;
+    assert_eq!(PathAttribute::Origin(Origin::IGP), path_attributes[0]);
+
+    let prefixes = &update_message.network_layer_reachability_information;
+    assert_eq!(Prefix::from_str("192.168.100.0/24").unwrap(), prefixes[0]);
 }

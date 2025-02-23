@@ -46,14 +46,16 @@ use bitflags::bitflags;
 use nom::bytes::complete::take;
 use nom::error::{Error, ErrorKind};
 use nom::{IResult, Parser};
-use nom::multi::many0;
+use nom::multi::{many0, many1};
 use nom::number::complete::{be_u16, be_u32, be_u8};
+use crate::prefix::Prefix;
 use crate::protocols::bgp::params::OptionalParameter;
 use crate::protocols::bgp::path_attr::Origin;
+use crate::protocols::bgp::rfc4760::AddressFamilyIdentifier;
 
 /// This enum is the implementation for processing all supported BGP messages transferred in a BGP session. This should be used when
 /// implementing a BGP receiver/sender.
-#[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum BGPMessage {
     Open(OpenMessage),
     Update(UpdateMessage),
@@ -75,6 +77,11 @@ impl BGPMessage {
             4 => Self::KeepAlive,
             _ => Self::Unknown { kind }
         }))
+    }
+
+    #[inline(always)]
+    pub fn unpack_many(input: &[u8]) -> IResult<&[u8], Vec<Self>> {
+        many1(Self::unpack).parse(input)
     }
 }
 
@@ -179,11 +186,11 @@ impl Display for PathAttribute {
 ///
 /// ## Reference
 /// - [UPDATE Message Format, Section 4.3 RFC 4271](https://datatracker.ietf.org/doc/html/rfc4271#section-4.3)
-#[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct UpdateMessage {
-    pub withdrawn_routes: Vec<u8>, // TODO: struct
+    pub withdrawn_routes: Vec<Prefix>, // TODO: struct
     pub path_attributes: Vec<PathAttribute>,
-    pub network_layer_reachability_information: Vec<u8> // TODO: Prefix struct
+    pub network_layer_reachability_information: Vec<Prefix> // TODO: Prefix struct
 }
 
 impl UpdateMessage {
@@ -193,11 +200,10 @@ impl UpdateMessage {
         let (input, path_attributes_length) = be_u16(input)?;
         let (nlri, path_attributes_bytes) = take(path_attributes_length)(input)?;
         let (_, path_attributes) = many0(PathAttribute::unpack).parse(path_attributes_bytes)?;
-
         Ok((&[], Self {
             path_attributes,
-            withdrawn_routes: withdrawn_routes.to_vec(),
-            network_layer_reachability_information: nlri.to_vec()
+            withdrawn_routes: many0(|b| Prefix::unpack(b, AddressFamilyIdentifier::IPv4)).parse(withdrawn_routes)?.1,
+            network_layer_reachability_information: many0(|b| Prefix::unpack(b, AddressFamilyIdentifier::IPv4)).parse(nlri)?.1
         }))
     }
 }
