@@ -13,10 +13,10 @@
 // limitations under the License.
 
 use std::fmt::{Display, Formatter};
-use std::io::{Cursor, Write};
-use rocket::http::hyper::body::Buf;
-use tokio::io::AsyncReadExt;
-use crate::protocols::bgp::rfc4760::{AddressFamilyIdentifier, MultiprotocolExtensionsCapability, SubsequentAddrFamilyIdentifier};
+use nom::bytes::complete::take;
+use nom::IResult;
+use nom::number::complete::be_u8;
+use crate::protocols::bgp::rfc4760::MultiprotocolExtensionsCapability;
 
 /// This enum implements a wrapper around [RFC 3392](https://datatracker.ietf.org/doc/html/rfc3392) that defines the capability
 /// advertisement with BGP-4.
@@ -27,44 +27,14 @@ pub enum Capability {
 }
 
 impl Capability {
-    pub(crate) async fn unpack_list(reader: &mut Cursor<&[u8]>) -> anyhow::Result<Vec<Self>> {
-        let mut capabilities = Vec::new();
-        while reader.has_remaining() {
-            let kind = reader.read_u8().await?;
-            let length = reader.read_u8().await?;
-            capabilities.push(match kind {
-                1 => {
-                    let address_family = AddressFamilyIdentifier::from(reader.read_u16().await?);
-                    let _ = reader.read_u8().await?; // Reserved
-                    let subsequent_address_family = SubsequentAddrFamilyIdentifier::from(reader.read_u8().await?);
-                    Self::MultiprotocolExtensions(MultiprotocolExtensionsCapability { address_family, subsequent_address_family })
-                }
-                _ => {
-                    let mut data = vec![0; length as usize];
-                    reader.read(&mut data).await?;
-                    Self::Unknown { kind, data }
-                }
-            })
-        }
-        Ok(capabilities)
-    }
-
-    async fn pack<W: Write>(&self, writer: &mut W) -> anyhow::Result<()> {
-        match self {
-            Self::MultiprotocolExtensions(extensions) => {
-                writer.write_all(&1_u8.to_be_bytes())?;
-                writer.write_all(&4_u8.to_be_bytes())?;
-                writer.write_all(&u16::from(extensions.address_family).to_be_bytes())?;
-                writer.write_all(&[0u8; 1])?;
-                writer.write_all(&u8::from(extensions.subsequent_address_family).to_be_bytes())?;
-            },
-            Self::Unknown { kind, data } => {
-                writer.write_all(&kind.to_be_bytes())?;
-                writer.write_all(&(data.len() as u8).to_be_bytes())?;
-                writer.write_all(&data)?;
-            }
-        }
-        Ok(())
+    pub(crate) fn unpack(input: &[u8]) -> IResult<&[u8], Self> {
+        let (input, kind) = be_u8(input)?;
+        let (input, length) = be_u8(input)?;
+        let (input, data) = take(length)(input)?;
+        Ok((input, match kind {
+            1 => Self::MultiprotocolExtensions(MultiprotocolExtensionsCapability::unpack(data)?.1),
+            _ => Self::Unknown { kind, data: data.to_vec() }
+        }))
     }
 }
 

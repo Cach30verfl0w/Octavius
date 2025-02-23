@@ -9,7 +9,10 @@ simple_logger = "5.0.0"
 colorful = "0.3.2"
 log = "0.4.26"
 anyhow = "1.0.96"
+
+# Protocol implementations
 bitflags = "2.8.0"
+nom = "8.0.0"
 
 # Web Interface
 rocket = { version = "0.5.1", features = ["tls"] }

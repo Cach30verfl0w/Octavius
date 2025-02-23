@@ -12,12 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::{Cursor, Read};
-use tokio::io::AsyncReadExt;
+use nom::bytes::complete::take;
+use nom::IResult;
+use nom::multi::many0;
+use nom::number::complete::be_u8;
 use crate::protocols::bgp::rfc3392::Capability;
+use nom::Parser;
 
 /// This enum implements all optional parameters which are sent with the BGP open message. These parameters contains some information about
-/// the router and it's capabilities ([RFC 3392](https://datatracker.ietf.org/doc/html/rfc3392)).
+/// the router and it's capabilities ([RFC 3392](https://datatracker.ietf.org/doc/html/rfc3392)).<
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum OptionalParameter {
     Capabilities(Vec<Capability>),
@@ -25,17 +28,13 @@ pub enum OptionalParameter {
 }
 
 impl OptionalParameter {
-    pub(crate) async fn unpack(reader: &mut Cursor<&[u8]>) -> anyhow::Result<Self> {
-        let kind = reader.read_u8().await?;
-        let length = reader.read_u8().await?;
-        let mut reader = Read::take(reader, length as _).into_inner();
-        Ok(match kind {
-            2 => Self::Capabilities(Capability::unpack_list(reader).await?),
-            _ => {
-                let mut data = Vec::with_capacity(length as _);
-                Read::read(&mut reader, &mut data)?;
-                Self::Unknown { kind, data }
-            }
-        })
+    pub(crate) fn unpack(input: &[u8]) -> IResult<&[u8], Self> {
+        let (input, kind) = be_u8(input)?;
+        let (input, length) = be_u8(input)?;
+        let (input, data) = take(length)(input)?;
+        Ok((input, match kind {
+            2 => Self::Capabilities(many0(Capability::unpack).parse(data)?.1),
+            _ => Self::Unknown { kind, data: data.to_vec() }
+        }))
     }
 }

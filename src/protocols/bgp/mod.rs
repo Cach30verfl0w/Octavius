@@ -42,62 +42,14 @@ pub mod path_attr;
 pub mod tests;
 
 use std::fmt::{Display, Formatter};
-use std::io::{Cursor, Read};
 use bitflags::bitflags;
-use rocket::http::hyper::body::Buf;
-use tokio::io::AsyncReadExt;
+use nom::bytes::complete::take;
+use nom::error::{Error, ErrorKind};
+use nom::{IResult, Parser};
+use nom::multi::many0;
+use nom::number::complete::{be_u16, be_u32, be_u8};
 use crate::protocols::bgp::params::OptionalParameter;
 use crate::protocols::bgp::path_attr::OriginAttribute;
-
-const HEADER_SIZE: u16 = 19; // Marker (16 bytes) + length (2 bytes) + kind (1 bytes) = Header Size in bytes
-
-/// This enum provides all BGP message kinds/types available through this BGP (de-)serialization library. It allows a type-safe handling of
-/// the incoming packets.
-///
-/// ## References
-/// - [Message Header Format, Section 4.1 RFC 4271](https://datatracker.ietf.org/doc/html/rfc4271#section-4.1)
-#[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash, Copy)]
-pub enum MessageKind {
-    Open,
-    Update,
-    Notification,
-    KeepAlive,
-    Unknown(u8)
-}
-
-impl From<u8> for MessageKind {
-    fn from(value: u8) -> Self {
-        match value {
-            1 => Self::Open,
-            2 => Self::Update,
-            3 => Self::Notification,
-            4 => Self::KeepAlive,
-            _ => Self::Unknown(value),
-        }
-    }
-}
-
-impl From<MessageKind> for u8 {
-    fn from(kind: MessageKind) -> Self {
-        match kind {
-            MessageKind::Open => 1,
-            MessageKind::Update => 2,
-            MessageKind::Notification => 3,
-            MessageKind::KeepAlive => 4,
-            MessageKind::Unknown(value) => value
-        }
-    }
-}
-
-/// This struct is the type-safe implementation for handling the header of incoming or outgoing BGP messages. These headers are applied at
-/// the start of any BGP packet. It contains the length of the message (inclusive the header itself) and the kind/type of the message.
-///
-/// ## Reference
-/// - [Message Header Format, Section 4.1 RFC 4271](https://datatracker.ietf.org/doc/html/rfc4271#section-4.1)
-struct MessageHeader {
-    pub length: u16,
-    pub kind: MessageKind
-}
 
 /// This enum is the implementation for processing all supported BGP messages transferred in a BGP session. This should be used when
 /// implementing a BGP receiver/sender.
@@ -107,24 +59,22 @@ pub enum BGPMessage {
     Update(UpdateMessage),
     KeepAlive,
     Notification(NotificationMessage),
-    Unknown { kind: MessageKind }
+    Unknown { kind: u8 }
 }
 
 impl BGPMessage {
-    pub(crate) async fn unpack(reader: &mut Cursor<&[u8]>) -> anyhow::Result<Self> {
-        let mut marker = [0u8; 16];
-        Read::read(&mut *reader, &mut marker)?;
-        let length = reader.read_u16().await?;
-        let kind = MessageKind::from(reader.read_u8().await?);
-        let header = MessageHeader { length, kind };
-
-        Ok(match header.kind {
-            MessageKind::Open => Self::Open(OpenMessage::unpack(reader).await?),
-            MessageKind::Update => Self::Update(UpdateMessage::unpack(&header, reader).await?),
-            MessageKind::Notification => Self::Notification(NotificationMessage::unpack(&header, reader).await?),
-            MessageKind::KeepAlive => Self::KeepAlive,
-            _ => Self::Unknown { kind: header.kind }
-        })
+    pub fn unpack(input: &[u8]) -> IResult<&[u8], Self> {
+        let (input, _marker) = take(16usize)(input)?;
+        let (input, length) = be_u16(input)?;
+        let (input, kind) = be_u8(input)?;
+        let (input, data) = take((length as usize) - 19)(input)?;
+        Ok((input, match kind {
+            1 => Self::Open(OpenMessage::unpack(data)?.1),
+            2 => Self::Update(UpdateMessage::unpack(data)?.1),
+            3 => Self::Notification(NotificationMessage::unpack(data)?.1),
+            4 => Self::KeepAlive,
+            _ => Self::Unknown { kind }
+        }))
     }
 }
 
@@ -143,22 +93,16 @@ pub struct OpenMessage {
 }
 
 impl OpenMessage {
-    async fn unpack(reader: &mut Cursor<&[u8]>) -> anyhow::Result<Self> {
-        let version = reader.read_u8().await?;
-        let autonomous_system = reader.read_u16().await?;
-        let hold_time = reader.read_u16().await?;
-        let bgp_identifier = reader.read_u32().await?;
+    fn unpack(input: &[u8]) -> IResult<&[u8], Self> {
+        let (input, version) = be_u8(input)?;
+        let (input, autonomous_system) = be_u16(input)?;
+        let (input, hold_time) = be_u16(input)?;
+        let (input, bgp_identifier) = be_u32(input)?;
 
-        // Read optional parameters
-        let opt_param_length = reader.read_u8().await?;
-        let opt_param_cursor = Read::take(reader, opt_param_length as _).into_inner();
-        let mut optional_parameters = Vec::new();
-        while opt_param_cursor.remaining() >= 2 {
-            optional_parameters.push(OptionalParameter::unpack(opt_param_cursor).await?);
-        }
-
-        // Return
-        Ok(Self { version, autonomous_system, hold_time, bgp_identifier, optional_parameters })
+        let (input, optional_parameters_length) = be_u8(input)?;
+        let (input, optional_parameters_bytes) = take(optional_parameters_length as usize)(input)?;
+        let (_, optional_parameters) = many0(OptionalParameter::unpack).parse(optional_parameters_bytes)?;
+        Ok((input, Self { version, autonomous_system, hold_time, bgp_identifier, optional_parameters }))
     }
 }
 
@@ -167,10 +111,10 @@ bitflags! {
     /// - [UPDATE Message Format, Section 4.2 RFC 4271](https://datatracker.ietf.org/doc/html/rfc4271#section-4.3)
     #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash, Copy)]
     pub struct PathAttributeFlags: u8 {
-        const OPTIONAL        = 0b0001_0000;
-        const TRANSITIVE      = 0b0010_0000;
-        const PARTIAL         = 0b0100_0000;
-        const EXTENDED_LENGTH = 0b1000_0000;
+        const OPTIONAL        = 0b1000_0000;
+        const TRANSITIVE      = 0b0100_0000;
+        const PARTIAL         = 0b0010_0000;
+        const EXTENDED_LENGTH = 0b0001_0000;
     }
 }
 
@@ -205,20 +149,19 @@ pub enum PathAttribute {
 }
 
 impl PathAttribute {
-    async fn unpack(reader: &mut Cursor<&[u8]>) -> anyhow::Result<Self> {
-        let flags = PathAttributeFlags::from_bits(reader.read_u8().await?).ok_or(anyhow::anyhow!("Unable to get flags of path attribute"))?;
-        let kind = reader.read_u8().await?;
-        let length = reader.read_u8().await?;
-        let reader = Read::take(&mut *reader, length as _).into_inner();
-
-        Ok(match kind {
-            1 => Self::Origin(OriginAttribute::from(reader.read_u8().await?)),
-            _ => {
-                let mut data = Vec::with_capacity(reader.remaining());
-                Read::read(reader, &mut data)?;
-                Self::Unknown { flags, kind, data }
+    fn unpack(input: &[u8]) -> IResult<&[u8], Self> {
+        let (input, flags) = be_u8(input)?;
+        let (input, kind) = be_u8(input)?;
+        let (input, length) = be_u8(input)?;
+        let (input, data) = take(length)(input)?;
+        Ok((input, match kind {
+            1 => Self::Origin(OriginAttribute::from(be_u8(data)?.1)),
+            _ => Self::Unknown {
+                flags: PathAttributeFlags::from_bits(flags).ok_or(nom::Err::Error(Error::new(input, ErrorKind::Tag)))?,
+                kind,
+                data: data.to_vec()
             }
-        })
+        }))
     }
 }
 
@@ -244,22 +187,18 @@ pub struct UpdateMessage {
 }
 
 impl UpdateMessage {
-    async fn unpack(header: &MessageHeader, reader: &mut Cursor<&[u8]>) -> anyhow::Result<Self> {
-        let mut withdrawn_routes = Vec::with_capacity(reader.read_u8().await? as _);
-        Read::read(&mut *reader, &mut withdrawn_routes)?;
+    fn unpack(input: &[u8]) -> IResult<&[u8], Self> {
+        let (input, withdrawn_routes_length) = be_u16(input)?;
+        let (input, withdrawn_routes) = take(withdrawn_routes_length)(input)?;
+        let (input, path_attributes_length) = be_u16(input)?;
+        let (nlri, path_attributes_bytes) = take(path_attributes_length)(input)?;
+        let (_, path_attributes) = many0(PathAttribute::unpack).parse(path_attributes_bytes)?;
 
-        let path_attributes_length = reader.read_u8().await?;
-        let mut path_attributes = Vec::new();
-        let mut path_attr_cursor = Read::take(&mut *reader, path_attributes_length as _);
-        while path_attr_cursor.get_ref().has_remaining() {
-            path_attributes.push(PathAttribute::unpack(path_attr_cursor.get_mut()).await?);
-        }
-
-        let remaining = header.length - HEADER_SIZE - (withdrawn_routes.len() as u16) - (path_attributes_length as u16);
-        let mut network_layer_reachability_information = Vec::with_capacity(remaining as _);
-        Read::read(&mut *reader, &mut network_layer_reachability_information)?;
-
-        Ok(Self { withdrawn_routes, path_attributes, network_layer_reachability_information })
+        Ok((&[], Self {
+            path_attributes,
+            withdrawn_routes: withdrawn_routes.to_vec(),
+            network_layer_reachability_information: nlri.to_vec()
+        }))
     }
 }
 
@@ -276,12 +215,9 @@ pub struct NotificationMessage {
 }
 
 impl NotificationMessage {
-    async fn unpack(header: &MessageHeader, reader: &mut Cursor<&[u8]>) -> anyhow::Result<Self> {
-        let error_code = reader.read_u8().await?;
-        let error_subcode = reader.read_u8().await?;
-        let data_size = header.length - HEADER_SIZE - 2;
-        let mut data = Vec::with_capacity(data_size as _);
-        Read::read(&mut *reader, &mut data)?;
-        Ok(Self { error_code, error_subcode, data })
+    fn unpack(input: &[u8]) -> IResult<&[u8], Self> {
+        let (input, error_code) = be_u8(input)?;
+        let (data, error_subcode) = be_u8(input)?;
+        Ok((&[], Self { error_code, error_subcode, data: data.to_vec() }))
     }
 }

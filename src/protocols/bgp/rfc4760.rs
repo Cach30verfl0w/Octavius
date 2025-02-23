@@ -16,6 +16,8 @@
 //! BGP. This extension allows the support for IPv6 addresses to the BGP router.
 
 use std::fmt::{Display, Formatter};
+use nom::IResult;
+use nom::number::complete::{be_u8, be_u16};
 
 /// This enum represents all AFI (Address family identifier) supported by this BGP implementation, currently we only support IPv4 and IPv6.
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash, Copy)]
@@ -124,5 +126,17 @@ pub struct MultiprotocolExtensionsCapability {
 impl Display for MultiprotocolExtensionsCapability {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         write!(formatter, "Multiprotocol support for {} ({})", self.address_family, self.subsequent_address_family)
+    }
+}
+
+impl MultiprotocolExtensionsCapability {
+    pub(crate) fn unpack(input: &[u8]) -> IResult<&[u8], Self> {
+        let (input, address_family) = be_u16(input)?;
+        let (input, _) = be_u8(input)?;
+        let (input, subsequent_address_family) = be_u8(input)?;
+        Ok((input, Self {
+            address_family: AddressFamilyIdentifier::from(address_family),
+            subsequent_address_family: SubsequentAddrFamilyIdentifier::from(subsequent_address_family)
+        }))
     }
 }

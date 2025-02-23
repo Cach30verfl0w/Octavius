@@ -1,4 +1,3 @@
-use std::io::Cursor;
 use crate::protocols::bgp::BGPMessage;
 use crate::protocols::bgp::params::OptionalParameter;
 use crate::protocols::bgp::rfc3392::Capability;
@@ -6,10 +5,10 @@ use crate::protocols::bgp::rfc4760::{AddressFamilyIdentifier, SubsequentAddrFami
 
 #[tokio::test]
 async fn read_open_message() {
-    let mut open_message_binary = Cursor::new(include_bytes!("../../samples/open_message.bin").as_slice());
+    let open_message_binary = include_bytes!("test-files/open_message.bin").as_slice();
 
     // Validate open message
-    let BGPMessage::Open(open_message) = BGPMessage::unpack(&mut open_message_binary).await.unwrap() else {
+    let BGPMessage::Open(open_message) = BGPMessage::unpack(&open_message_binary).unwrap().1 else {
         panic!("Test message isn't an open message");
     };
 
@@ -35,4 +34,14 @@ async fn read_open_message() {
         }
         _ => panic!("First capability isn't a multiprotocol extensions capability"),
     }
+}
+
+#[tokio::test]
+async fn read_update_message() {
+    let mut update_message_binary = include_bytes!("test-files/update_message_0.bin").as_slice();
+    let BGPMessage::Update(update_message) = BGPMessage::unpack(&mut update_message_binary).unwrap().1 else {
+        panic!("Test message isn't an update message");
+    };
+
+    println!("{:#?}", update_message);
 }

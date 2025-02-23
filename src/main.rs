@@ -17,7 +17,7 @@ pub mod protocols;
 use std::fs;
 use std::process::exit;
 use colorful::{Color, Colorful};
-use log::{error, info, LevelFilter};
+use log::{error, LevelFilter};
 use sea_orm::{ConnectOptions, DatabaseConnection};
 use simple_logger::SimpleLogger;
 
@@ -56,11 +56,4 @@ async fn main() {
     let database = database.unwrap();
     // TODO: Run migration for all tables
     // TODO: (Only if no users present) Create user database
-
-    info!("Starting REST API for control server");
-    let rocket = rocket::build();
-    if let Err(error) = rocket.launch().await {
-        error!("Unable to initialize REST API => {}", error);
-        exit(-1);
-    }
 }
