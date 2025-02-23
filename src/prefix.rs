@@ -49,10 +49,10 @@ impl Prefix {
     pub(crate) fn unpack(input: &[u8], address_family: AddressFamilyIdentifier) -> IResult<&[u8], Self> {
         let (input, mask) = be_u8(input)?;
         let (input, prefix) = take((mask + 7) / 8)(input)?;
-        Ok((input, match address_family {
-            AddressFamilyIdentifier::IPv4 => Self::IPv4 { addr: Ipv4Addr::from(slice_to_array::<4>(prefix)), mask },
-            AddressFamilyIdentifier::IPv6 => Self::IPv6 { addr: Ipv6Addr::from(slice_to_array::<16>(prefix)), mask },
-            AddressFamilyIdentifier::Unknown(_) => todo!()
-        }))
+        match address_family {
+            AddressFamilyIdentifier::IPv4 => Ok((input, Self::IPv4 { addr: Ipv4Addr::from(slice_to_array::<4>(prefix)), mask })),
+            AddressFamilyIdentifier::IPv6 => Ok((input, Self::IPv6 { addr: Ipv6Addr::from(slice_to_array::<16>(prefix)), mask })),
+            AddressFamilyIdentifier::Unknown(_) => Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Complete))),
+        }
     }
 }
