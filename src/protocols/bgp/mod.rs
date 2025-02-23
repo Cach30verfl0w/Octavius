@@ -216,9 +216,9 @@ impl Display for PathAttribute {
 /// - [UPDATE Message Format, Section 4.3 RFC 4271](https://datatracker.ietf.org/doc/html/rfc4271#section-4.3)
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct UpdateMessage {
-    pub withdrawn_routes: Vec<Prefix>, // TODO: struct
+    pub withdrawn_routes: Vec<Prefix>,
     pub path_attributes: Vec<PathAttribute>,
-    pub network_layer_reachability_information: Vec<Prefix> // TODO: Prefix struct
+    pub network_layer_reachability_information: Vec<Prefix>
 }
 
 impl UpdateMessage {
