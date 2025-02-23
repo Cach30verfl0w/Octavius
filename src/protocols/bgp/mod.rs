@@ -49,7 +49,7 @@ use nom::{IResult, Parser};
 use nom::multi::many0;
 use nom::number::complete::{be_u16, be_u32, be_u8};
 use crate::protocols::bgp::params::OptionalParameter;
-use crate::protocols::bgp::path_attr::OriginAttribute;
+use crate::protocols::bgp::path_attr::Origin;
 
 /// This enum is the implementation for processing all supported BGP messages transferred in a BGP session. This should be used when
 /// implementing a BGP receiver/sender.
@@ -144,7 +144,7 @@ impl Display for PathAttributeFlags {
 /// - [Path Attributes, Section 5 RFC 4271](https://datatracker.ietf.org/doc/html/rfc4271#section-5)
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum PathAttribute {
-    Origin(OriginAttribute),
+    Origin(Origin),
     Unknown { flags: PathAttributeFlags, kind: u8, data: Vec<u8> }
 }
 
@@ -155,7 +155,7 @@ impl PathAttribute {
         let (input, length) = be_u8(input)?;
         let (input, data) = take(length)(input)?;
         Ok((input, match kind {
-            1 => Self::Origin(OriginAttribute::from(be_u8(data)?.1)),
+            1 => Self::Origin(Origin::from(be_u8(data)?.1)),
             _ => Self::Unknown {
                 flags: PathAttributeFlags::from_bits(flags).ok_or(nom::Err::Error(Error::new(input, ErrorKind::Tag)))?,
                 kind,

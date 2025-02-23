@@ -16,7 +16,7 @@
 /// NLRI/prefixes sent in the message.
 #[repr(u8)]
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash, Copy)]
-pub enum OriginAttribute {
+pub enum Origin {
     /// NLRI is interior to the originating AS
     IGP = 0,
 
@@ -27,7 +27,7 @@ pub enum OriginAttribute {
     Incomplete = 2
 }
 
-impl From<u8> for OriginAttribute {
+impl From<u8> for Origin {
     fn from(value: u8) -> Self {
         match value {
             0 => Self::IGP,
