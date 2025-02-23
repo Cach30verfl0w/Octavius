@@ -18,11 +18,11 @@
 //!
 //! | RFC                                                       | Title                                 | Status            | File      |
 //! |-----------------------------------------------------------|---------------------------------------|-------------------|-----------|
-//! | [RFC 1997](https://datatracker.ietf.org/doc/html/rfc1997) | BGP Communities Attribute             | Planned           | -/-       |
+//! | [RFC 1997](https://datatracker.ietf.org/doc/html/rfc1997) | BGP Communities Attribute             | Fully implemented | [rfc1997] |
 //! | [RFC 2918](https://datatracker.ietf.org/doc/html/rfc2918) | Route Refresh Capability for BGP-4    | Planned           | -/-       |
 //! | [RFC 3392](https://datatracker.ietf.org/doc/html/rfc3392) | Capabilities Advertisement with BGP-4 | Fully implemented | [rfc3392] |
 //! | [RFC 4271](https://datatracker.ietf.org/doc/html/rfc4271) | A Border Gateway Protocol 4 (BGP-4)   | Fully implemented | [self]    |
-//! | [RFC 4370](https://datatracker.ietf.org/doc/html/rfc4360) | BGP Extended Communities Attribute    | Planned           | -/-       |
+//! | [RFC 4370](https://datatracker.ietf.org/doc/html/rfc4360) | BGP Extended Communities Attribute    | Fully implemented | [rfc1997] |
 //! | [RFC 4724](https://datatracker.ietf.org/doc/html/rfc4724) | Graceful Restart Mechanism for BGP    | Planned           | -/-       |
 //! | [RFC 4760](https://datatracker.ietf.org/doc/html/rfc4760) | Multiprotocol Extensions for BGP-4    | Fully implemented | [rfc4760] |
 //! | [RFC 6793](https://datatracker.ietf.org/doc/html/rfc6793) | BGP Support for Four-Octet AS Numbers | Fully implemented | [rfc6793] |
@@ -35,10 +35,12 @@
 //! and serialization of BGP packets itself.
 
 pub mod params;
+pub mod path_attr;
+
+pub mod rfc1997;
 pub mod rfc3392;
 pub mod rfc4760;
 pub mod rfc6793;
-pub mod path_attr;
 
 #[cfg(test)]
 pub mod tests;
@@ -53,6 +55,7 @@ use nom::number::complete::{be_u16, be_u32, be_u8};
 use crate::prefix::Prefix;
 use crate::protocols::bgp::params::OptionalParameter;
 use crate::protocols::bgp::path_attr::Origin;
+use crate::protocols::bgp::rfc1997::CommunitiesPathAttribute;
 use crate::protocols::bgp::rfc4760::{AddressFamily, MultiprotocolReachablePathAttribute, MultiprotocolUnreachablePathAttribute};
 
 /// This enum is the implementation for processing all supported BGP messages transferred in a BGP session. This should be used when
@@ -156,6 +159,7 @@ pub enum PathAttribute {
     Origin(Origin),
     MpReachableNLRI(MultiprotocolReachablePathAttribute),
     MpUnreachableNLRI(MultiprotocolUnreachablePathAttribute),
+    Communities(CommunitiesPathAttribute),
     Unknown { flags: PathAttributeFlags, kind: u8, data: Vec<u8> }
 }
 
@@ -175,6 +179,7 @@ impl PathAttribute {
         let (input, data) = take(length)(input)?;
         Ok((input, match kind {
             1 => Self::Origin(Origin::from(be_u8(data)?.1)),
+            8 => Self::Communities(CommunitiesPathAttribute::unpack(data)?.1),
             14 => Self::MpReachableNLRI(MultiprotocolReachablePathAttribute::unpack(data)?.1),
             15 => Self::MpUnreachableNLRI(MultiprotocolUnreachablePathAttribute::unpack(data)?.1),
             _ => Self::Unknown {
@@ -197,6 +202,7 @@ impl Display for PathAttribute {
                 reachable.address_family,
                 reachable.subsequent_address_family
             ),
+            Self::Communities(communities) => write!(formatter, "{} communities", communities.communities.len()),
             Self::MpReachableNLRI(reachable) => write!(
                 formatter,
                 "{} newly reachable {} addresses ({})",

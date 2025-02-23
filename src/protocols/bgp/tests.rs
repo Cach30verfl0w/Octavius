@@ -56,7 +56,7 @@ fn read_update_message_1() {
 
 #[test]
 fn read_update_message_2() {
-    let mut update_message_binary = include_bytes!("test-files/update_message_1.bin").as_slice();
+    let mut update_message_binary = include_bytes!("test-files/update_message_2.bin").as_slice();
     let messages = BGPMessage::unpack_many(&mut update_message_binary).unwrap().1;
     println!("{:#?}", messages);
 }
