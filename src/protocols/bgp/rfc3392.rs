@@ -33,7 +33,6 @@ impl Capability {
         let (input, kind) = be_u8(input)?;
         let (input, length) = be_u8(input)?;
         let (input, data) = take(length)(input)?;
-        println!("{}", kind);
         Ok((input, match kind {
             1 => Self::MultiprotocolExtensions(MultiprotocolExtensionsCapability::unpack(data)?.1),
             65 => Self::FourOctetASNumberSupport(FourOctetASNumberSupportCapability { as_number: be_u32(data)?.1 }),
