@@ -30,7 +30,7 @@
 //! | [RFC 7313](https://datatracker.ietf.org/doc/html/rfc7313) | Enhanced Route Refresh Capability          | Planned     | -/-       |
 //! | [RFC 7606](https://datatracker.ietf.org/doc/html/rfc7606) | Revised Error Handling for BGP UPDATE      | Planned     | -/-       |
 //! | [RFC 8205](https://datatracker.ietf.org/doc/html/rfc8205) | BGPsec Protocol Specification              | Planned     | -/-       |
-//! | [RFC 8955](https://datatracker.ietf.org/doc/html/rfc8955) | Dissemination of FlowSpec rules            | Potentially | -/-       |
+//! | [RFC 8955](https://datatracker.ietf.org/doc/html/rfc8955) | Dissemination of FlowSpec rules            | Planned | -/-       |
 //!
 //! The BGP (Border Gateway Protocol) is the EGP (Exterior Gateway Protocol) protocol used for the exchange of routes between two autonomous
 //! systems, but can also be used as an IGP (Interior Gateway Protocol) and is used for big networks. This module implements the processing
@@ -59,7 +59,6 @@ use nom::number::complete::{be_u16, be_u32, be_u8};
 use crate::prefix::Prefix;
 use crate::protocols::bgp::params::OptionalParameter;
 use crate::protocols::bgp::path_attr::Origin;
-use crate::protocols::bgp::rfc1997::CommunitiesPathAttribute;
 use crate::protocols::bgp::rfc4760::{AddressFamily, MultiprotocolReachablePathAttribute, MultiprotocolUnreachablePathAttribute};
 
 pub(crate) fn unpack_address(input: &[u8], address_family: AddressFamily) -> IResult<&[u8], IpAddr> {
@@ -185,7 +184,6 @@ pub enum PathAttribute {
     Origin(Origin),
     MpReachableNLRI(MultiprotocolReachablePathAttribute),
     MpUnreachableNLRI(MultiprotocolUnreachablePathAttribute),
-    Communities(CommunitiesPathAttribute),
     Unknown { flags: PathAttributeFlags, kind: u8, data: Vec<u8> }
 }
 
@@ -205,7 +203,6 @@ impl PathAttribute {
         let (input, data) = take(length)(input)?;
         Ok((input, match kind {
             1 => Self::Origin(Origin::from(be_u8(data)?.1)),
-            8 => Self::Communities(CommunitiesPathAttribute::unpack(data)?.1),
             14 => Self::MpReachableNLRI(MultiprotocolReachablePathAttribute::unpack(data)?.1),
             15 => Self::MpUnreachableNLRI(MultiprotocolUnreachablePathAttribute::unpack(data)?.1),
             _ => Self::Unknown {
@@ -228,7 +225,6 @@ impl Display for PathAttribute {
                 reachable.address_family,
                 reachable.subsequent_address_family
             ),
-            Self::Communities(communities) => write!(formatter, "{} communities", communities.communities.len()),
             Self::MpReachableNLRI(reachable) => write!(
                 formatter,
                 "{} newly reachable {} addresses ({})",
