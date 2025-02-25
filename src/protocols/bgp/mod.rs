@@ -30,11 +30,15 @@
 //! | [RFC 7313](https://datatracker.ietf.org/doc/html/rfc7313) | Enhanced Route Refresh Capability          | Planned     | -/-       |
 //! | [RFC 7606](https://datatracker.ietf.org/doc/html/rfc7606) | Revised Error Handling for BGP UPDATE      | Planned     | -/-       |
 //! | [RFC 8205](https://datatracker.ietf.org/doc/html/rfc8205) | BGPsec Protocol Specification              | Planned     | -/-       |
-//! | [RFC 8955](https://datatracker.ietf.org/doc/html/rfc8955) | Dissemination of FlowSpec rules            | Planned | -/-       |
+//! | [RFC 8955](https://datatracker.ietf.org/doc/html/rfc8955) | Dissemination of FlowSpec rules            | Planned     | -/-       |
 //!
 //! The BGP (Border Gateway Protocol) is the EGP (Exterior Gateway Protocol) protocol used for the exchange of routes between two autonomous
 //! systems, but can also be used as an IGP (Interior Gateway Protocol) and is used for big networks. This module implements the processing
 //! and serialization of BGP packets itself.
+//!
+//! ## References
+//! - [Standards documents, Wikipedia "Border Gateway Protocol"](https://en.wikipedia.org/wiki/Border_Gateway_Protocol#Standards_documents)
+//! - [Supported Standards for BGP, Juniper](https://www.juniper.net/documentation/us/en/software/junos/standards/bgp/topics/concept/bgp.html)
 
 pub mod params;
 pub mod path_attr;
