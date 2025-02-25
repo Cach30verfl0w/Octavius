@@ -16,19 +16,21 @@
 //! be aware that not every RFCs is currently implemented into this codebase. Below this text you can see a list with the standards already
 //! implemented, not implemented or planned to be implemented.
 //!
-//! | RFC                                                       | Title                                 | Status            | File      |
-//! |-----------------------------------------------------------|---------------------------------------|-------------------|-----------|
-//! | [RFC 1997](https://datatracker.ietf.org/doc/html/rfc1997) | BGP Communities Attribute             | Fully implemented | [rfc1997] |
-//! | [RFC 2918](https://datatracker.ietf.org/doc/html/rfc2918) | Route Refresh Capability for BGP-4    | Planned           | -/-       |
-//! | [RFC 3392](https://datatracker.ietf.org/doc/html/rfc3392) | Capabilities Advertisement with BGP-4 | Fully implemented | [rfc3392] |
-//! | [RFC 4271](https://datatracker.ietf.org/doc/html/rfc4271) | A Border Gateway Protocol 4 (BGP-4)   | Fully implemented | [self]    |
-//! | [RFC 4370](https://datatracker.ietf.org/doc/html/rfc4360) | BGP Extended Communities Attribute    | Fully implemented | [rfc1997] |
-//! | [RFC 4724](https://datatracker.ietf.org/doc/html/rfc4724) | Graceful Restart Mechanism for BGP    | Planned           | -/-       |
-//! | [RFC 4760](https://datatracker.ietf.org/doc/html/rfc4760) | Multiprotocol Extensions for BGP-4    | Fully implemented | [rfc4760] |
-//! | [RFC 6793](https://datatracker.ietf.org/doc/html/rfc6793) | BGP Support for Four-Octet AS Numbers | Fully implemented | [rfc6793] |
-//! | [RFC 7313](https://datatracker.ietf.org/doc/html/rfc7313) | Enhanced Route Refresh Capability     | Planned           | -/-       |
-//! | [RFC 7606](https://datatracker.ietf.org/doc/html/rfc7606) | Revised Error Handling for BGP UPDATE | Planned           | -/-       |
-//! | [RFC 8955](https://datatracker.ietf.org/doc/html/rfc8955) | Dissemination of FlowSpec rules       | Potentially       | -/-       |
+//! | RFC                                                       | Title                                      | Status      | File      |
+//! |-----------------------------------------------------------|--------------------------------------------|-------------|-----------|
+//! | [RFC 1997](https://datatracker.ietf.org/doc/html/rfc1997) | BGP Communities Attribute                  | Implemented | [rfc1997] |
+//! | [RFC 2918](https://datatracker.ietf.org/doc/html/rfc2918) | Route Refresh Capability for BGP-4         | Planned     | -/-       |
+//! | [RFC 3392](https://datatracker.ietf.org/doc/html/rfc3392) | Capabilities Advertisement with BGP-4      | Implemented | [rfc3392] |
+//! | [RFC 4271](https://datatracker.ietf.org/doc/html/rfc4271) | A Border Gateway Protocol 4 (BGP-4)        | Implemented | [self]    |
+//! | [RFC 4370](https://datatracker.ietf.org/doc/html/rfc4360) | BGP Extended Communities Attribute         | Implemented | [rfc1997] |
+//! | [RFC 4724](https://datatracker.ietf.org/doc/html/rfc4724) | Graceful Restart Mechanism for BGP         | Planned     | -/-       |
+//! | [RFC 4760](https://datatracker.ietf.org/doc/html/rfc4760) | Multiprotocol Extensions for BGP-4         | Implemented | [rfc4760] |
+//! | [RFC 5668](https://datatracker.ietf.org/doc/html/rfc5668) | 4-Octet AS-specific BGP Extended Community | Implemented | [rfc1997] |
+//! | [RFC 6793](https://datatracker.ietf.org/doc/html/rfc6793) | BGP Support for Four-Octet AS Numbers      | Implemented | [rfc6793] |
+//! | [RFC 7313](https://datatracker.ietf.org/doc/html/rfc7313) | Enhanced Route Refresh Capability          | Planned     | -/-       |
+//! | [RFC 7606](https://datatracker.ietf.org/doc/html/rfc7606) | Revised Error Handling for BGP UPDATE      | Planned     | -/-       |
+//! | [RFC 8205](https://datatracker.ietf.org/doc/html/rfc8205) | BGPsec Protocol Specification              | Planned     | -/-       |
+//! | [RFC 8955](https://datatracker.ietf.org/doc/html/rfc8955) | Dissemination of FlowSpec rules            | Potentially | -/-       |
 //!
 //! The BGP (Border Gateway Protocol) is the EGP (Exterior Gateway Protocol) protocol used for the exchange of routes between two autonomous
 //! systems, but can also be used as an IGP (Interior Gateway Protocol) and is used for big networks. This module implements the processing

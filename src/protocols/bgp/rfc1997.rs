@@ -24,69 +24,67 @@
 //! ## References
 //! - [RFC 1997 "BGP Communities Attribute"](https://datatracker.ietf.org/doc/html/rfc1997)
 //! - [RFC 4360 "BGP Extended Communities Attribute"](https://datatracker.ietf.org/doc/html/rfc4360)
+//! - [RFC 5668 "4-Octet AS-specific BGP Extended Community"](https://datatracker.ietf.org/doc/html/rfc5668)
 
-use std::str::FromStr;
-use nom::{IResult, Parser, number::complete::be_u16};
+use std::net::Ipv4Addr;
+use nom::IResult;
+use nom::number::complete::be_u16;
 
 /// This struct is representing a BGP community. A community is used to add metainformation to the route like advertisement information for
-/// the route.
+/// the route. This struct support serializing basic RFC 1997 communities and extended communities as specified in RFC 4360 with support for
+/// 4-byte ASNs (RFC 5668).
 ///
 /// ## References
 /// - [RFC 1997 "BGP Communities Attribute"](https://datatracker.ietf.org/doc/html/rfc1997)
-#[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
-pub struct Community {
-    /// The ASN (Autonomous System Number) is used as a namespace parameter for the community value. It identifies the network operating
-    /// with the community value and establishes a relationship between the community and the ASN itself.
-    pub namespace: u16,
+/// - [RFC 4360 "BGP Extended Communities Attribute"](https://datatracker.ietf.org/doc/html/rfc4360)
+/// - [RFC 5668 "4-Octet AS-specific BGP Extended Community"](https://datatracker.ietf.org/doc/html/rfc5668)
+#[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash, Copy)]
+pub enum Community {
+    /// This value indicates a community value as specified in [RFC 1997](https://datatracker.ietf.org/doc/html/rfc1997) for 2-octet
+    /// autonomous systems.
+    ///
+    /// ## References
+    /// - [RFC 1997 "BGP Communities Attribute"](https://datatracker.ietf.org/doc/html/rfc1997)
+    RFC1997 { global_administrator: u16, local_administrator: u16 },
 
-    /// The local tag of the community. This value represents the value of the community within the autonomous system (AS) and is used to
-    /// identify rules/policies for the routes.
-    pub local_tag: u16
-}
+    /// This value indicates an extended community value (4-byte local administrator value) for an 2-byte ASN (as assigned by one of the
+    /// registries) as specified in RFC 4360.
+    ///
+    /// ## References
+    /// - [Two-octet AS Specific Extended Community, Section 3.1 RFC 4360](https://datatracker.ietf.org/doc/html/rfc4360#section-3.1)
+    RFC4360ASN { global_administrator: u16, local_administrator: u32 },
 
-impl From<u32> for Community {
-    #[inline(always)]
-    fn from(value: u32) -> Self {
-        Self { namespace: ((value >> 16) & 0xFFFF) as _, local_tag: (value & 0xFFFF) as _ }
-    }
-}
+    /// This value indicates an extended community value (2-byte local administrator value) for an IPv4 unicast address assigned by one
+    /// of the Registries.
+    ///
+    /// ## References
+    /// - [IPv4 Address Specific Extended Community, Section 3.2 RFC 4360](https://datatracker.ietf.org/doc/html/rfc4360#section-3.2)
+    RFC4360Address { global_administrator: Ipv4Addr, local_administrator: u16 },
 
-impl From<Community> for u32 {
-    #[inline(always)]
-    fn from(value: Community) -> Self {
-        (value.namespace as u32) << 16 | value.local_tag as u32
-    }
-}
+    /// This value indicates an opaque extended community as specified by RFC 4360.
+    ///
+    /// ## References
+    /// - [Opaque Extended Community, Section 3.3 RFC 4360](https://datatracker.ietf.org/doc/html/rfc4360#section-3.3)
+    RFC4360Opaque { value: [u8; 6] },
 
-impl FromStr for Community {
-    type Err = anyhow::Error;
-    fn from_str(string: &str) -> Result<Self, Self::Err> {
-        let (namespace, local_tag) = string.split_once(":").ok_or(anyhow::anyhow!("String is not matching format namespace:local_tag"))?;
-        Ok(Self { namespace: namespace.parse()?, local_tag: local_tag.parse()? })
-    }
+    /// This value indicates an RFC5668-specified community value for 4-byte ASN values.
+    ///
+    /// ## References
+    /// - [4-Octet AS Specific Extended Community, Section 2 RFC 5668](https://datatracker.ietf.org/doc/html/rfc5668#section-2)
+    RFC5668ASN { global_administrator: u32, local_administrator: u16 }
 }
 
 impl Community {
-    pub const NO_EXPORT: Community = Community { namespace: 0xFFFF, local_tag: 0xFF01 };
-    pub const NO_ADVERTISE: Community = Community { namespace: 0xFFFF, local_tag: 0xFF01 };
-    pub const NO_EXPORT_SUBCONFED: Community = Community { namespace: 0xFFFF, local_tag: 0xFF01 };
-
-    pub fn unpack(input: &[u8]) -> IResult<&[u8], Community> {
-        let (input, namespace) = be_u16(input)?;
-        let (input, local_tag) = be_u16(input)?;
-        Ok((input, Self { namespace, local_tag }))
-    }
-}
-
-#[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
-pub struct CommunitiesPathAttribute {
-    pub communities: Vec<Community>
-}
-
-impl CommunitiesPathAttribute {
-    #[inline]
-    pub fn unpack(input: &[u8]) -> IResult<&[u8], Self> {
-        let (input, communities) = nom::multi::many0(Community::unpack).parse(input)?;
-        Ok((input, Self { communities }))
+    /// This function takes the input bytes and serializes them into a community. The `extended_attribute` parameter is set true, if this
+    /// element is being parsed in an extended communities path attribute, otherwise that should be set false. If successful, this function
+    /// returns the remaining bytes as a slice and the community itself.
+    fn unpack(input: &[u8], extended_community: bool) -> IResult<&[u8], Self> {
+        if !extended_community {
+            let (input, global_administrator) = be_u16(input)?;
+            let (input, local_administrator) = be_u16(input)?;
+            Ok((input, Self { global_administrator, local_administrator }))
+        } else {
+            todo!("Unpack extended ")
+        }
     }
 }
