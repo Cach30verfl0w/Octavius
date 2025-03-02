@@ -95,7 +95,7 @@ pub enum BGPMessage {
     Update(UpdateMessage),
     KeepAlive,
     Notification(NotificationMessage),
-    Unknown { kind: u8 }
+    Unknown { kind: u8, data: Vec<u8> }
 }
 
 impl BGPMessage {
@@ -109,7 +109,7 @@ impl BGPMessage {
             2 => Self::Update(UpdateMessage::unpack(data)?.1),
             3 => Self::Notification(NotificationMessage::unpack(data)?.1),
             4 => Self::KeepAlive,
-            _ => Self::Unknown { kind }
+            _ => Self::Unknown { kind, data: data.to_vec() }
         }))
     }
 
