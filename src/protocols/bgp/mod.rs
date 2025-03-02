@@ -63,6 +63,7 @@ use nom::number::complete::{be_u16, be_u32, be_u8};
 use crate::prefix::Prefix;
 use crate::protocols::bgp::params::OptionalParameter;
 use crate::protocols::bgp::path_attr::Origin;
+use crate::protocols::bgp::rfc1997::Community;
 use crate::protocols::bgp::rfc4760::{AddressFamily, MultiprotocolReachablePathAttribute, MultiprotocolUnreachablePathAttribute};
 
 pub(crate) fn unpack_address(input: &[u8], address_family: AddressFamily) -> IResult<&[u8], IpAddr> {
@@ -188,6 +189,8 @@ pub enum PathAttribute {
     Origin(Origin),
     MpReachableNLRI(MultiprotocolReachablePathAttribute),
     MpUnreachableNLRI(MultiprotocolUnreachablePathAttribute),
+    Communities(Vec<Community>),
+    ExtendedCommunities(Vec<Community>),
     Unknown { flags: PathAttributeFlags, kind: u8, data: Vec<u8> }
 }
 
@@ -206,9 +209,11 @@ impl PathAttribute {
 
         let (input, data) = take(length)(input)?;
         Ok((input, match kind {
-            1 => Self::Origin(Origin::from(be_u8(data)?.1)),
-            14 => Self::MpReachableNLRI(MultiprotocolReachablePathAttribute::unpack(data)?.1),
-            15 => Self::MpUnreachableNLRI(MultiprotocolUnreachablePathAttribute::unpack(data)?.1),
+            0x01 => Self::Origin(Origin::from(be_u8(data)?.1)),
+            0x08 => Self::Communities(many1(|value| Community::unpack(value, false)).parse(data)?.1),
+            0x0E => Self::MpReachableNLRI(MultiprotocolReachablePathAttribute::unpack(data)?.1),
+            0x0F => Self::MpUnreachableNLRI(MultiprotocolUnreachablePathAttribute::unpack(data)?.1),
+            0x10 => Self::ExtendedCommunities(many1(|value| Community::unpack(value, true)).parse(data)?.1),
             _ => Self::Unknown {
                 flags,
                 kind,
@@ -222,6 +227,8 @@ impl Display for PathAttribute {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Origin(origin) => write!(formatter, "{:?}", origin),
+            Self::Communities(communities) => write!(formatter, "{} communities", communities.len()),
+            Self::ExtendedCommunities(communities) => write!(formatter, "{} extended communities", communities.len()),
             Self::MpUnreachableNLRI(reachable) => write!(
                 formatter,
                 "{} newly unreachable {} addresses ({})",
