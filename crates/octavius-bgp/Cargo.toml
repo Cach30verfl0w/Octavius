@@ -1,0 +1,20 @@
+[package]
+name = "ocatvius-bgp"
+description = "No-std pure Rust implementation for the deserialization and deserialization of BGP messages"
+categories = ["network-programming", "parser-implementations", "no-std"]
+keywords = ["bgp", "parser", "serialization", "networking", "routing"]
+license.workspace = true
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+readme.workspace = true
+
+
+[features]
+default = ["rfc3392"]
+std = ["nom/std"]
+rfc3392 = []
+
+[dependencies]
+bitflags = "2.9.0"
+nom = { version = "8.0.0", default-features = false, features = ["alloc"] }

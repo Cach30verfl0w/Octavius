@@ -1,21 +1,12 @@
-[package]
-name = "octavius"
-version = "0.1.0"
+[workspace]
+resolver = "2"
+members = [
+    "crates/*"
+]
+
+[workspace.package]
+license = "Apache-2.0"
+version = "1.0.0"
+authors = ["Cedric Hammes <cach30verfl0w@gmail.com>"]
 edition = "2021"
-
-[dependencies]
-tokio = { version = "1.43.0", features = ["full"] }
-simple_logger = "5.0.0"
-colorful = "0.3.2"
-log = "0.4.26"
-anyhow = "1.0.96"
-
-# Protocol implementations
-bitflags = "2.8.0"
-nom = "8.0.0"
-
-# Web Interface
-rocket = { version = "0.5.1", features = ["tls"] }
-
-# Database/ORM
-sea-orm = { version = "1.1.5", features = ["sqlx-postgres", "sqlx-sqlite", "runtime-tokio"] }
+readme = "README.md"

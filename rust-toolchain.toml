@@ -1,0 +1,3 @@
+# Configure the latest toolchain to latest nightly channel
+[toolchain]
+channel = "nightly-2025-03-05"
