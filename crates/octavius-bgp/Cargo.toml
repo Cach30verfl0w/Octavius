@@ -12,7 +12,7 @@ readme.workspace = true
 [features]
 default = ["rfc3392"]
 std = ["nom/std"]
-rfc3392 = []
+rfc3392 = [] # Capabilities advertisement
 
 [dependencies]
 bitflags = "2.9.0"
