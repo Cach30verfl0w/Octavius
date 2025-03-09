@@ -3,20 +3,8 @@
 //! peer about IPv4 prefixes etc.
 
 use alloc::vec::Vec;
+use crate::prefix::AddressFamily;
 use crate::type_enum;
-
-type_enum! {
-    /// This value represents the address family specified in the Multiprotocol Extensions associated attributes. Currently we only support
-    /// IPv4 and IPv6.
-    ///
-    /// ## References
-    /// - [Address Family Numbers, IANA](https://www.iana.org/assignments/address-family-numbers/address-family-numbers.xhtml)
-    #[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Hash, Clone, Copy)]
-    pub enum AddressFamily: be_u8(u8) {
-        IPv4 = 1,
-        IPv6 = 2
-    }
-}
 
 type_enum! {
     /// This enum represents all SAFI (Subsequent address family identifier) supported by this BGP implementation, currently we only support

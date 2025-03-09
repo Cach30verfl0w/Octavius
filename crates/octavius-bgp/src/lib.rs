@@ -38,6 +38,7 @@ pub(crate) mod macros;
 #[cfg(feature = "rfc3392")] pub mod rfc3392;
 pub mod rfc4271;
 #[cfg(feature = "rfc4760")] pub mod rfc4760;
+pub mod prefix;
 
 use crate::rfc4271::{
     BGPMessageHeader,
@@ -51,7 +52,7 @@ use nom::{
     IResult,
 };
 
-pub trait BGPElement {
+pub trait BGPElement<P = ()> {
     fn unpack(input: &[u8]) -> IResult<&[u8], Self>
     where
         Self: Sized;

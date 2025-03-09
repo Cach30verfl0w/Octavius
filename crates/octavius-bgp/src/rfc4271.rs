@@ -31,6 +31,7 @@ use nom::{
     IResult,
     Parser,
 };
+use crate::prefix::{AddressFamily, Prefix};
 
 #[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Clone, Copy, Hash)]
 pub struct BGPMessageHeader {
@@ -475,9 +476,9 @@ impl BGPElement for PathAttribute {
 /// - [UPDATE Message Format, Section 4.3 RFC 4271](https://datatracker.ietf.org/doc/html/rfc4271#section-4.3)
 #[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Hash, Clone)]
 pub struct UpdateMessage {
-    pub withdrawn_routes: Vec<u8>,
+    pub withdrawn_routes: Vec<Prefix>,
     pub path_attributes: Vec<PathAttribute>,
-    pub nlri: Vec<u8>,
+    pub nlri: Vec<Prefix>,
 }
 
 impl BGPElement for UpdateMessage {
@@ -494,17 +495,20 @@ impl BGPElement for UpdateMessage {
         Ok((
             &[],
             Self {
-                withdrawn_routes: withdrawn_routes.to_vec(),
+                withdrawn_routes: many0(|input| Prefix::unpack(input, AddressFamily::IPv4)).parse(withdrawn_routes)?.1,
                 path_attributes,
-                nlri: nlri.to_vec(),
+                nlri: many0(|input| Prefix::unpack(input, AddressFamily::IPv4)).parse(nlri)?.1,
             },
         ))
     }
 
     fn pack(&self) -> Vec<u8> {
         let mut buffer = Vec::new();
-        buffer.extend_from_slice(&(self.withdrawn_routes.len() as u16).to_be_bytes());
-        buffer.extend_from_slice(&self.withdrawn_routes);
+
+        let mut withdrawn_routes_buffer = Vec::new();
+        self.withdrawn_routes.iter().for_each(|prefix| withdrawn_routes_buffer.extend(prefix.pack()));
+        buffer.extend_from_slice(&(withdrawn_routes_buffer.len() as u16).to_be_bytes());
+        buffer.extend(withdrawn_routes_buffer);
 
         // Write path attributes
         let mut path_attr_buffer = Vec::new();
@@ -516,7 +520,9 @@ impl BGPElement for UpdateMessage {
         buffer.extend_from_slice(&path_attr_buffer);
 
         // Write NLRI and return
-        buffer.extend_from_slice(&self.nlri);
+        let mut nlri_buffer = Vec::new();
+        self.nlri.iter().for_each(|prefix| nlri_buffer.extend(prefix.pack()));
+        buffer.extend(nlri_buffer);
         buffer
     }
 }
