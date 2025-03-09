@@ -9,7 +9,6 @@ authors.workspace = true
 edition.workspace = true
 readme.workspace = true
 
-
 [features]
 default = ["rfc3392"]
 std = ["nom/std"]

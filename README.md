@@ -11,3 +11,4 @@
 - [ ] Extract the protocol implementations as separate crates (and more documentation)
 - [ ] Limit extension support with features which can be set at compilation
 - [ ] Add support for MRT ([RFC 6396](https://datatracker.ietf.org/doc/html/rfc6396))
+- [ ] Stress testing with [rtod](https://github.com/dtaht/rtod/tree/master)

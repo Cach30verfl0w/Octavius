@@ -3,6 +3,7 @@
 
 use crate::BGPElement;
 use alloc::vec::Vec;
+use core::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use bitflags::bitflags;
 use nom::{
     bytes::complete::take,
@@ -10,7 +11,10 @@ use nom::{
         Error,
         ErrorKind,
     },
-    multi::many0,
+    multi::{
+        many0,
+        many_m_n,
+    },
     number::complete::{
         be_u16,
         be_u32,
@@ -19,6 +23,7 @@ use nom::{
     IResult,
     Parser,
 };
+use nom::number::complete::be_u128;
 
 #[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Clone, Copy, Hash)]
 pub struct BGPMessageHeader {
@@ -142,7 +147,7 @@ impl From<u8> for Origin {
         match value {
             0 => Self::IGP,
             1 => Self::EGP,
-            _ => Self::Incomplete
+            _ => Self::Incomplete,
         }
     }
 }
@@ -152,8 +157,71 @@ impl From<&Origin> for u8 {
         match value {
             Origin::IGP => 0,
             Origin::EGP => 1,
-            Origin::Incomplete => 2
+            Origin::Incomplete => 2,
         }
+    }
+}
+
+#[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Hash, Clone)]
+pub enum ASPathSegment {
+    Sequence(Vec<u32>),
+    Set(Vec<ASPathSegment>),
+    Unknown { kind: u8, length: u8, data: Vec<u8> },
+}
+
+impl BGPElement for ASPathSegment {
+    fn unpack(input: &[u8]) -> IResult<&[u8], Self>
+    where
+        Self: Sized,
+    {
+        let (input, kind) = be_u8(input)?;
+        let (input, length) = be_u8(input)?;
+        match kind {
+            1 => {
+                let (input, set) = many_m_n(1, length, ASPathSegment::unpack).parse(input)?;
+                Ok((input, Self::Set(set)))
+            }
+            2 => {
+                let (input, sequence) = many_m_n(1, length, be_u8).parse(input)?;
+                Ok((input, Self::Sequence(sequence)))
+            }
+            _ => {
+                Ok((
+                    &[],
+                    Self::Unknown {
+                        kind,
+                        length,
+                        data: input.to_vec(),
+                    },
+                ))
+            }
+        }
+    }
+
+    fn pack(&self) -> Vec<u8> {
+        let mut buffer = Vec::new();
+        match self {
+            Self::Set(set) => {
+                buffer.extend_from_slice(&1.to_be_bytes());
+                buffer.extend_from_slice(&(set.len() as u8).to_be_bytes());
+                for value in set {
+                    buffer.extend(value.pack());
+                }
+            }
+            Self::Sequence(sequence) => {
+                buffer.extend_from_slice(&2.to_be_bytes());
+                buffer.extend_from_slice(&(sequence.len() as u8).to_be_bytes());
+                for value in sequence {
+                    buffer.extend_from_slice(&value.to_be_bytes());
+                }
+            }
+            Self::Unknown { kind, length, data } => {
+                buffer.extend_from_slice(&kind.to_be_bytes());
+                buffer.extend_from_slice(&length.to_be_bytes());
+                buffer.extend(data);
+            }
+        }
+        buffer
     }
 }
 
@@ -166,12 +234,12 @@ impl From<&Origin> for u8 {
 #[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Hash, Clone)]
 pub enum PathAttribute {
     Origin(Origin),
-    // TODO: AS_PATH
-    // TODO: NEXT_HOP
+    AsPath(ASPathSegment),
+    NextHop(IpAddr),
     MultiExitDisc(u32),
     LocalPref(u32),
     AtomicAggregate,
-    // TODO: AGGREGATOR
+    Aggregator { asn: u32, address: Ipv4Addr },
     Unknown {
         kind: u8,
         flags: PathAttributeFlags,
@@ -184,6 +252,7 @@ impl BGPElement for PathAttribute {
     where
         Self: Sized,
     {
+        // TODO: Validate flags of path attributes?
         let (input, flags) = be_u8(input)?;
         let flags = PathAttributeFlags::from_bits(flags).ok_or(nom::Err::Error(Error::new(input, ErrorKind::Tag)))?;
         let (input, kind) = be_u8(input)?;
@@ -202,9 +271,28 @@ impl BGPElement for PathAttribute {
             input,
             match kind {
                 1 => Self::Origin(Origin::from(be_u8(data)?.1)),
+                2 => Self::AsPath(ASPathSegment::unpack(data)?.1),
+                3 => Self::NextHop(match length {
+                    16 => IpAddr::V6(Ipv6Addr::from_bits(be_u128(data)?.1)),
+                    8 => IpAddr::V4(Ipv4Addr::from_bits(be_u32(data)?.1)),
+                    _ => return Err(nom::Err::Error(Error::new(input, ErrorKind::Fail)))
+                }),
                 4 => Self::MultiExitDisc(be_u32(data)?.1),
                 5 => Self::LocalPref(be_u32(data)?.1),
                 6 => Self::AtomicAggregate,
+                7 => match length {
+                    6 => {
+                        let (data, asn) = be_u16(data)?;
+                        let (_, addr) = be_u32(data)?;
+                        Self::Aggregator { asn, address: Ipv4Addr::from_bits(addr) }
+                    },
+                    8 => {
+                        let (data, asn) = be_u32(data)?;
+                        let (_, addr) = be_u32(data)?;
+                        Self::Aggregator { asn, address: Ipv4Addr::from_bits(addr) }
+                    },
+                    _ => return Err(nom::Err::Error(Error::new(input, ErrorKind::Fail)))
+                }
                 _ => {
                     Self::Unknown {
                         kind,
@@ -225,6 +313,28 @@ impl BGPElement for PathAttribute {
                 buffer.extend_from_slice(&1_u8.to_be_bytes());
                 buffer.extend_from_slice(&u8::from(origin).to_be_bytes());
             }
+            Self::AsPath(as_path) => {
+                buffer.extend_from_slice(&PathAttributeFlags::TRANSITIVE.bits().to_be_bytes());
+                buffer.extend_from_slice(&2_u8.to_be_bytes());
+
+                let as_path = as_path.pack();
+                buffer.extend_from_slice(&(as_path.len() as u8).to_be_bytes());
+                buffer.extend(as_path);
+            }
+            Self::NextHop(next_hop_addr) => {
+                buffer.extend_from_slice(&PathAttributeFlags::TRANSITIVE.bits().to_be_bytes());
+                buffer.extend_from_slice(&3_u8.to_be_bytes());
+                match next_hop_addr {
+                    IpAddr::V4(ipv4_addr) => {
+                        buffer.extend_from_slice(&4_u8.to_be_bytes());
+                        buffer.extend_from_slice(&ipv4_addr.octets());
+                    },
+                    IpAddr::V6(ipv6_addr) => {
+                        buffer.extend_from_slice(&16_u8.to_be_bytes());
+                        buffer.extend_from_slice(&ipv6_addr.octets());
+                    }
+                }
+            }
             Self::MultiExitDisc(multi_exit_disc) => {
                 buffer.extend_from_slice(&PathAttributeFlags::OPTIONAL.bits().to_be_bytes());
                 buffer.extend_from_slice(&4_u8.to_be_bytes());
@@ -241,6 +351,18 @@ impl BGPElement for PathAttribute {
                 buffer.extend_from_slice(&PathAttributeFlags::TRANSITIVE.bits().to_be_bytes());
                 buffer.extend_from_slice(&6_u8.to_be_bytes());
                 buffer.extend_from_slice(&0_u8.to_be_bytes());
+            }
+            Self::Aggregator { asn, address } => {
+                buffer.extend_from_slice(&PathAttributeFlags::TRANSITIVE.bits().to_be_bytes());
+                buffer.extend_from_slice(&7_u8.to_be_bytes());
+                if *asn > (u16::MAX as u32) {
+                    buffer.extend_from_slice(&8_u8.to_be_bytes());
+                    buffer.extend_from_slice(&asn.to_be_bytes());
+                } else {
+                    buffer.extend_from_slice(&8_u8.to_be_bytes());
+                    buffer.extend_from_slice(&(*asn as u16).to_be_bytes());
+                }
+                buffer.extend_from_slice(&address.octets());
             }
             Self::Unknown { kind, flags, data } => {
                 let use_extended_length = data.len() > u8::MAX as _;
