@@ -40,13 +40,20 @@ pub mod prefix;
 pub mod rfc4271;
 #[cfg(feature = "rfc4760")] pub mod rfc4760;
 
-use crate::rfc4271::{
-    BGPMessageHeader,
-    NotificationMessage,
-    OpenMessage,
-    UpdateMessage,
+use crate::{
+    prefix::{
+        unpack_ip_address,
+        AddressFamily,
+    },
+    rfc4271::{
+        BGPMessageHeader,
+        NotificationMessage,
+        OpenMessage,
+        UpdateMessage,
+    },
 };
 use alloc::vec::Vec;
+use core::net::IpAddr;
 use nom::{
     bytes::complete::take,
     IResult,
@@ -120,5 +127,49 @@ impl BGPMessage {
             Self::KeepAlive => 4,
             Self::Unknown { kind, .. } => kind.clone(),
         }
+    }
+}
+
+/// This struct implements the next hop attribute/parameter for the basic BGP implementation and the Multiprotocol extension form of the
+/// next hop.
+pub struct NextHop {
+    pub next_hop: IpAddr,
+    #[cfg(feature = "rfc4760")]
+    pub link_local_address: Option<IpAddr>,
+}
+
+impl NextHop {
+    pub fn unpack(input: &[u8], addr_family: AddressFamily, extended: bool) -> IResult<&[u8], Self> {
+        let (input, next_hop) = unpack_ip_address(input, addr_family)?;
+        Ok((
+            &[],
+            Self {
+                next_hop,
+                #[cfg(feature = "rfc4760")]
+                link_local_address: if extended && addr_family == AddressFamily::IPv6 {
+                    Some(unpack_ip_address(input, addr_family)?.1)
+                } else {
+                    None
+                },
+            },
+        ))
+    }
+
+    fn pack(&self) -> Vec<u8> {
+        let mut buffer = Vec::new();
+        match self.next_hop {
+            IpAddr::V4(addr) => buffer.extend_from_slice(&addr.octets()),
+            IpAddr::V6(addr) => buffer.extend_from_slice(&addr.octets()),
+        }
+
+        #[cfg(feature = "rfc4760")]
+        if let Some(link_local_address) = self.link_local_address.as_ref() {
+            match link_local_address {
+                IpAddr::V4(addr) => buffer.extend_from_slice(&addr.octets()),
+                IpAddr::V6(addr) => buffer.extend_from_slice(&addr.octets()),
+            }
+        }
+
+        buffer
     }
 }

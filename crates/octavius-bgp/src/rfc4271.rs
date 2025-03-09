@@ -11,6 +11,7 @@ use crate::{
         Prefix,
     },
     BGPElement,
+    NextHop,
 };
 use alloc::vec::Vec;
 use bitflags::bitflags;
@@ -312,7 +313,7 @@ impl BGPElement for ASPathSegment {
 pub enum PathAttribute {
     Origin(Origin),
     AsPath(ASPathSegment),
-    NextHop(IpAddr),
+    NextHop(NextHop),
     MultiExitDisc(u32),
     LocalPref(u32),
     AtomicAggregate,
@@ -354,13 +355,7 @@ impl BGPElement for PathAttribute {
             match kind {
                 1 => Self::Origin(Origin::from(be_u8(data)?.1)),
                 2 => Self::AsPath(ASPathSegment::unpack(data)?.1),
-                3 => {
-                    Self::NextHop(match length {
-                        16 => IpAddr::V6(Ipv6Addr::from_bits(be_u128(data)?.1)),
-                        8 => IpAddr::V4(Ipv4Addr::from_bits(be_u32(data)?.1)),
-                        _ => return Err(nom::Err::Error(Error::new(input, ErrorKind::Fail))),
-                    })
-                }
+                3 => Self::NextHop(NextHop::unpack(input, if length == 16 { AddressFamily::IPv6 } else { AddressFamily::IPv4 }, false)?.1),
                 4 => Self::MultiExitDisc(be_u32(data)?.1),
                 5 => Self::LocalPref(be_u32(data)?.1),
                 6 => Self::AtomicAggregate,
