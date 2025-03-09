@@ -8,7 +8,7 @@
 //! | [RFC 1997](https://datatracker.ietf.org/doc/html/rfc1997) | BGP Communities Attribute                   | Planned     |
 //! | [RFC 2918](https://datatracker.ietf.org/doc/html/rfc2918) | Route Refresh Capability for BGP-4          | Planned     |
 //! | [RFC 3392](https://datatracker.ietf.org/doc/html/rfc3392) | Capabilities Advertisement with BGP-4       | Implemented |
-//! | [RFC 4271](https://datatracker.ietf.org/doc/html/rfc4271) | A Border Gateway Protocol 4 (BGP-4)         | Planned     |
+//! | [RFC 4271](https://datatracker.ietf.org/doc/html/rfc4271) | A Border Gateway Protocol 4 (BGP-4)         | Implemented |
 //! | [RFC 4370](https://datatracker.ietf.org/doc/html/rfc4360) | BGP Extended Communities Attribute          | Planned     |
 //! | [RFC 4724](https://datatracker.ietf.org/doc/html/rfc4724) | Graceful Restart Mechanism for BGP          | Planned     |
 //! | [RFC 4760](https://datatracker.ietf.org/doc/html/rfc4760) | Multiprotocol Extensions for BGP-4          | Planned     |
@@ -33,9 +33,11 @@
 #![no_std]
 extern crate alloc;
 
+pub(crate) mod macros;
+
+#[cfg(feature = "rfc3392")] pub mod rfc3392;
 pub mod rfc4271;
-#[cfg(feature = "rfc3392")]
-pub mod rfc3392;
+#[cfg(feature = "rfc4760")] pub mod rfc4760;
 
 use crate::rfc4271::{
     BGPMessageHeader,

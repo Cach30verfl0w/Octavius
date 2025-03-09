@@ -1,10 +1,16 @@
 //! This file implemented the [RFC 4271 - A Border Gateway Protocol 4 (BGP-4)](https://datatracker.ietf.org/doc/html/rfc4271), the base RFC
 //! of the BGP protocol which is specifying the base of the protocol.
 
+#[cfg(feature = "rfc3392")]
+use crate::rfc3392::Capability;
 use crate::BGPElement;
 use alloc::vec::Vec;
-use core::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use bitflags::bitflags;
+use core::net::{
+    IpAddr,
+    Ipv4Addr,
+    Ipv6Addr,
+};
 use nom::{
     bytes::complete::take,
     error::{
@@ -13,9 +19,11 @@ use nom::{
     },
     multi::{
         many0,
+        many1,
         many_m_n,
     },
     number::complete::{
+        be_u128,
         be_u16,
         be_u32,
         be_u8,
@@ -23,10 +31,6 @@ use nom::{
     IResult,
     Parser,
 };
-use nom::multi::many1;
-use nom::number::complete::be_u128;
-#[cfg(feature = "rfc3392")]
-use crate::rfc3392::Capability;
 
 #[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Clone, Copy, Hash)]
 pub struct BGPMessageHeader {
@@ -67,7 +71,10 @@ impl BGPElement for BGPMessageHeader {
 pub enum OptionalParameter {
     #[cfg(feature = "rfc3392")]
     Capabilities(Vec<Capability>),
-    Unknown { kind: u8, data: Vec<u8> }
+    Unknown {
+        kind: u8,
+        data: Vec<u8>,
+    },
 }
 
 impl BGPElement for OptionalParameter {
@@ -78,11 +85,14 @@ impl BGPElement for OptionalParameter {
         let (input, kind) = be_u8(input)?;
         let (input, length) = be_u8(input)?;
         let (input, data) = take(length as usize)(input)?;
-        Ok((input, match kind {
-            #[cfg(feature = "rfc3392")]
-            2 => Self::Capabilities(many1(Capability::unpack).parse(data)?.1),
-            _ => Self::Unknown { kind, data: data.to_vec() }
-        }))
+        Ok((
+            input,
+            match kind {
+                #[cfg(feature = "rfc3392")]
+                2 => Self::Capabilities(many1(Capability::unpack).parse(data)?.1),
+                _ => Self::Unknown { kind, data: data.to_vec() },
+            },
+        ))
     }
 
     fn pack(&self) -> Vec<u8> {
@@ -237,11 +247,11 @@ impl BGPElement for ASPathSegment {
         let (input, length) = be_u8(input)?;
         match kind {
             1 => {
-                let (input, set) = many_m_n(1, length, ASPathSegment::unpack).parse(input)?;
+                let (input, set) = many_m_n(1, length as _, ASPathSegment::unpack).parse(input)?;
                 Ok((input, Self::Set(set)))
             }
             2 => {
-                let (input, sequence) = many_m_n(1, length, be_u8).parse(input)?;
+                let (input, sequence) = many_m_n(1, length as _, be_u32).parse(input)?;
                 Ok((input, Self::Sequence(sequence)))
             }
             _ => {
@@ -261,14 +271,14 @@ impl BGPElement for ASPathSegment {
         let mut buffer = Vec::new();
         match self {
             Self::Set(set) => {
-                buffer.extend_from_slice(&1.to_be_bytes());
+                buffer.extend_from_slice(&1_u8.to_be_bytes());
                 buffer.extend_from_slice(&(set.len() as u8).to_be_bytes());
                 for value in set {
                     buffer.extend(value.pack());
                 }
             }
             Self::Sequence(sequence) => {
-                buffer.extend_from_slice(&2.to_be_bytes());
+                buffer.extend_from_slice(&2_u8.to_be_bytes());
                 buffer.extend_from_slice(&(sequence.len() as u8).to_be_bytes());
                 for value in sequence {
                     buffer.extend_from_slice(&value.to_be_bytes());
@@ -298,7 +308,10 @@ pub enum PathAttribute {
     MultiExitDisc(u32),
     LocalPref(u32),
     AtomicAggregate,
-    Aggregator { asn: u32, address: Ipv4Addr },
+    Aggregator {
+        asn: u32,
+        address: Ipv4Addr,
+    },
     Unknown {
         kind: u8,
         flags: PathAttributeFlags,
@@ -331,26 +344,36 @@ impl BGPElement for PathAttribute {
             match kind {
                 1 => Self::Origin(Origin::from(be_u8(data)?.1)),
                 2 => Self::AsPath(ASPathSegment::unpack(data)?.1),
-                3 => Self::NextHop(match length {
-                    16 => IpAddr::V6(Ipv6Addr::from_bits(be_u128(data)?.1)),
-                    8 => IpAddr::V4(Ipv4Addr::from_bits(be_u32(data)?.1)),
-                    _ => return Err(nom::Err::Error(Error::new(input, ErrorKind::Fail)))
-                }),
+                3 => {
+                    Self::NextHop(match length {
+                        16 => IpAddr::V6(Ipv6Addr::from_bits(be_u128(data)?.1)),
+                        8 => IpAddr::V4(Ipv4Addr::from_bits(be_u32(data)?.1)),
+                        _ => return Err(nom::Err::Error(Error::new(input, ErrorKind::Fail))),
+                    })
+                }
                 4 => Self::MultiExitDisc(be_u32(data)?.1),
                 5 => Self::LocalPref(be_u32(data)?.1),
                 6 => Self::AtomicAggregate,
-                7 => match length {
-                    6 => {
-                        let (data, asn) = be_u16(data)?;
-                        let (_, addr) = be_u32(data)?;
-                        Self::Aggregator { asn, address: Ipv4Addr::from_bits(addr) }
-                    },
-                    8 => {
-                        let (data, asn) = be_u32(data)?;
-                        let (_, addr) = be_u32(data)?;
-                        Self::Aggregator { asn, address: Ipv4Addr::from_bits(addr) }
-                    },
-                    _ => return Err(nom::Err::Error(Error::new(input, ErrorKind::Fail)))
+                7 => {
+                    match length {
+                        6 => {
+                            let (data, asn) = be_u16(data)?;
+                            let (_, addr) = be_u32(data)?;
+                            Self::Aggregator {
+                                asn: asn as _,
+                                address: Ipv4Addr::from_bits(addr),
+                            }
+                        }
+                        8 => {
+                            let (data, asn) = be_u32(data)?;
+                            let (_, addr) = be_u32(data)?;
+                            Self::Aggregator {
+                                asn,
+                                address: Ipv4Addr::from_bits(addr),
+                            }
+                        }
+                        _ => return Err(nom::Err::Error(Error::new(input, ErrorKind::Fail))),
+                    }
                 }
                 _ => {
                     Self::Unknown {
@@ -387,7 +410,7 @@ impl BGPElement for PathAttribute {
                     IpAddr::V4(ipv4_addr) => {
                         buffer.extend_from_slice(&4_u8.to_be_bytes());
                         buffer.extend_from_slice(&ipv4_addr.octets());
-                    },
+                    }
                     IpAddr::V6(ipv6_addr) => {
                         buffer.extend_from_slice(&16_u8.to_be_bytes());
                         buffer.extend_from_slice(&ipv6_addr.octets());

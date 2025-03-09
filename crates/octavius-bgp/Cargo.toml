@@ -10,9 +10,10 @@ edition.workspace = true
 readme.workspace = true
 
 [features]
-default = ["rfc3392"]
+default = ["rfc3392", "rfc4760"]
 std = ["nom/std"]
-rfc3392 = [] # Capabilities advertisement
+rfc3392 = [] # Capabilities Advertisement with BGP-4
+rfc4760 = [] # Multiprotocol Extensions for BGP-4
 
 [dependencies]
 bitflags = "2.9.0"
