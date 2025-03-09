@@ -1,12 +1,26 @@
-use alloc::vec::Vec;
-use core::cmp::min;
-use core::fmt::{Display, Formatter};
-use core::net::{IpAddr, Ipv4Addr, Ipv6Addr};
-use nom::bytes::streaming::take;
-use nom::error::{Error, ErrorKind};
-use nom::IResult;
-use nom::number::complete::be_u8;
 use crate::type_enum;
+use alloc::vec::Vec;
+use core::{
+    cmp::min,
+    fmt::{
+        Display,
+        Formatter,
+    },
+    net::{
+        IpAddr,
+        Ipv4Addr,
+        Ipv6Addr,
+    },
+};
+use nom::{
+    bytes::streaming::take,
+    error::{
+        Error,
+        ErrorKind,
+    },
+    number::complete::be_u8,
+    IResult,
+};
 
 type_enum! {
     /// This value represents the address family specified in the Multiprotocol Extensions associated attributes. Currently we only support
@@ -24,7 +38,7 @@ type_enum! {
 #[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Hash, Clone, Copy)]
 pub struct Prefix {
     address: IpAddr,
-    mask: u8
+    mask: u8,
 }
 
 impl Display for Prefix {
@@ -37,7 +51,13 @@ impl Prefix {
     pub fn unpack(input: &[u8], address_family: AddressFamily) -> IResult<&[u8], Prefix> {
         let (input, mask) = be_u8(input)?;
         let (input, prefix) = take((mask + 7) / 8)(input)?;
-        Ok((input, Prefix { address: unpack_ip_address(prefix, address_family)?.1, mask }))
+        Ok((
+            input,
+            Prefix {
+                address: unpack_ip_address(prefix, address_family)?.1,
+                mask,
+            },
+        ))
     }
 
     pub fn pack(&self) -> Vec<u8> {
@@ -64,11 +84,11 @@ pub fn unpack_ip_address(input: &[u8], address_family: AddressFamily) -> IResult
         AddressFamily::IPv4 => {
             let (input, bytes) = slice_to_array::<4>(input)?;
             Ok((input, IpAddr::V4(Ipv4Addr::from(bytes))))
-        },
+        }
         AddressFamily::IPv6 => {
             let (input, bytes) = slice_to_array::<16>(input)?;
             Ok((input, IpAddr::V6(Ipv6Addr::from(bytes))))
-        },
-        _ => Err(nom::Err::Error(Error::new(input, ErrorKind::Complete)))
+        }
+        _ => Err(nom::Err::Error(Error::new(input, ErrorKind::Complete))),
     }
 }

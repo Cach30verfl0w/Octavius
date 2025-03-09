@@ -35,10 +35,10 @@ extern crate alloc;
 
 pub(crate) mod macros;
 
+pub mod prefix;
 #[cfg(feature = "rfc3392")] pub mod rfc3392;
 pub mod rfc4271;
 #[cfg(feature = "rfc4760")] pub mod rfc4760;
-pub mod prefix;
 
 use crate::rfc4271::{
     BGPMessageHeader,

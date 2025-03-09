@@ -3,7 +3,15 @@
 
 #[cfg(feature = "rfc3392")]
 use crate::rfc3392::Capability;
-use crate::BGPElement;
+#[cfg(feature = "rfc4760")]
+use crate::rfc4760::MultiprotocolUnreachNLRI;
+use crate::{
+    prefix::{
+        AddressFamily,
+        Prefix,
+    },
+    BGPElement,
+};
 use alloc::vec::Vec;
 use bitflags::bitflags;
 use core::net::{
@@ -31,7 +39,6 @@ use nom::{
     IResult,
     Parser,
 };
-use crate::prefix::{AddressFamily, Prefix};
 
 #[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Clone, Copy, Hash)]
 pub struct BGPMessageHeader {
@@ -313,6 +320,8 @@ pub enum PathAttribute {
         asn: u32,
         address: Ipv4Addr,
     },
+    #[cfg(feature = "rfc4760")]
+    MpUnreachableNlri(MultiprotocolUnreachNLRI),
     Unknown {
         kind: u8,
         flags: PathAttributeFlags,
@@ -376,6 +385,8 @@ impl BGPElement for PathAttribute {
                         _ => return Err(nom::Err::Error(Error::new(input, ErrorKind::Fail))),
                     }
                 }
+                #[cfg(feature = "rfc4760")]
+                15 => Self::MpUnreachableNlri(MultiprotocolUnreachNLRI::unpack(input)?.1),
                 _ => {
                     Self::Unknown {
                         kind,
@@ -447,6 +458,15 @@ impl BGPElement for PathAttribute {
                 }
                 buffer.extend_from_slice(&address.octets());
             }
+            #[cfg(feature = "rfc4760")]
+            Self::MpUnreachableNlri(attribute) => {
+                buffer.extend_from_slice(&PathAttributeFlags::OPTIONAL.bits().to_be_bytes());
+                buffer.extend_from_slice(&15_u8.to_be_bytes());
+
+                let body = attribute.pack();
+                buffer.extend_from_slice(&(body.len() as u8).to_be_bytes());
+                buffer.extend(body);
+            }
             Self::Unknown { kind, flags, data } => {
                 let use_extended_length = data.len() > u8::MAX as _;
                 let flags = if use_extended_length {
@@ -506,7 +526,9 @@ impl BGPElement for UpdateMessage {
         let mut buffer = Vec::new();
 
         let mut withdrawn_routes_buffer = Vec::new();
-        self.withdrawn_routes.iter().for_each(|prefix| withdrawn_routes_buffer.extend(prefix.pack()));
+        self.withdrawn_routes
+            .iter()
+            .for_each(|prefix| withdrawn_routes_buffer.extend(prefix.pack()));
         buffer.extend_from_slice(&(withdrawn_routes_buffer.len() as u16).to_be_bytes());
         buffer.extend(withdrawn_routes_buffer);
 
