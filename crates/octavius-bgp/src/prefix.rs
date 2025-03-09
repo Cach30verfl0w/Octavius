@@ -36,6 +36,19 @@ type_enum! {
     }
 }
 
+type_enum! {
+    /// This enum represents all SAFI (Subsequent address family identifier) supported by this BGP implementation, currently we only support
+    /// Unicast or Multicast.
+    ///
+    /// ## References
+    /// [Subsequent Address Family Identifier, Section 6 RFC 4760](https://datatracker.ietf.org/doc/html/rfc4760#section-6)
+    #[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Hash, Clone, Copy)]
+    pub enum SubsequentAddressFamily: be_u8(u8) {
+        Unicast = 1,
+        Multicast = 2
+    }
+}
+
 #[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Hash, Clone, Copy)]
 pub struct Prefix {
     address: IpAddr,

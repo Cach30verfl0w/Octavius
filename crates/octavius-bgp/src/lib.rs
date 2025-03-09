@@ -6,7 +6,7 @@
 //! | RFC                                                       | Title                                       | Status      |
 //! |-----------------------------------------------------------|---------------------------------------------|-------------|
 //! | [RFC 1997](https://datatracker.ietf.org/doc/html/rfc1997) | BGP Communities Attribute                   | Implemented |
-//! | [RFC 2918](https://datatracker.ietf.org/doc/html/rfc2918) | Route Refresh Capability for BGP-4          | Planned     |
+//! | [RFC 2918](https://datatracker.ietf.org/doc/html/rfc2918) | Route Refresh Capability for BGP-4          | Implemented |
 //! | [RFC 3392](https://datatracker.ietf.org/doc/html/rfc3392) | Capabilities Advertisement with BGP-4       | Implemented |
 //! | [RFC 4271](https://datatracker.ietf.org/doc/html/rfc4271) | A Border Gateway Protocol 4 (BGP-4)         | Implemented |
 //! | [RFC 4370](https://datatracker.ietf.org/doc/html/rfc4360) | BGP Extended Communities Attribute          | Implemented |
@@ -43,10 +43,13 @@ pub mod rfc4271;
 
 // BGP Extensions
 #[cfg(feature = "rfc1997")] pub mod rfc1997;
+#[cfg(feature = "rfc2918")] pub mod rfc2918;
 #[cfg(feature = "rfc3392")] pub mod rfc3392;
 #[cfg(feature = "rfc4760")] pub mod rfc4760;
 #[cfg(all(feature = "std", test))] pub mod test;
 
+#[cfg(feature = "rfc2918")]
+use crate::rfc2918::RouteRefreshMessage;
 use crate::{
     prefix::{
         unpack_ip_address,
@@ -83,7 +86,12 @@ pub enum BGPMessage {
     Update(UpdateMessage),
     Notification(NotificationMessage),
     KeepAlive,
-    Unknown { kind: u8, data: Vec<u8> },
+    #[cfg(feature = "rfc2918")]
+    RouteRefresh(RouteRefreshMessage),
+    Unknown {
+        kind: u8,
+        data: Vec<u8>,
+    },
 }
 
 impl BGPElement for BGPMessage {
@@ -97,6 +105,8 @@ impl BGPElement for BGPMessage {
                 2 => Self::Update(UpdateMessage::unpack(message)?.1),
                 3 => Self::Notification(NotificationMessage::unpack(message)?.1),
                 4 => Self::KeepAlive,
+                #[cfg(feature = "rfc2918")]
+                5 => Self::RouteRefresh(RouteRefreshMessage::unpack(message)?.1),
                 _ => {
                     Self::Unknown {
                         kind: header.kind,
@@ -112,8 +122,10 @@ impl BGPElement for BGPMessage {
             Self::Open(message) => message.pack(),
             Self::Update(message) => message.pack(),
             Self::Notification(message) => message.pack(),
-            Self::Unknown { data, .. } => data.clone(),
             Self::KeepAlive => Vec::new(),
+            #[cfg(feature = "rfc2918")]
+            Self::RouteRefresh(message) => message.pack(),
+            Self::Unknown { data, .. } => data.clone(),
         };
 
         let mut buffer = BGPMessageHeader {
@@ -140,6 +152,8 @@ impl BGPMessage {
             Self::Update(_) => 2,
             Self::Notification(_) => 3,
             Self::KeepAlive => 4,
+            #[cfg(feature = "rfc2918")]
+            Self::RouteRefresh(_) => 5,
             Self::Unknown { kind, .. } => kind.clone(),
         }
     }

@@ -10,9 +10,10 @@ edition.workspace = true
 readme.workspace = true
 
 [features]
-default = ["rfc1997", "rfc3392", "rfc4760", "rfc5668"]
+default = ["rfc1997", "rfc2918", "rfc3392", "rfc4760", "rfc5668"]
 std = ["nom/std"]
 rfc1997 = []          # BGP Communities Attribute
+rfc2918 = []          # Route Refresh Capability for BGP-4
 rfc3392 = []          # Capabilities Advertisement with BGP-4
 rfc4360 = ["rfc1997"] # BGP Extended Communities Attribute
 rfc4760 = ["rfc3392"] # Multiprotocol Extensions for BGP-4

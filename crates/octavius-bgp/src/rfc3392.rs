@@ -21,6 +21,8 @@ use nom::{
 pub enum Capability {
     #[cfg(feature = "rfc4760")]
     MultiprotocolExtensions(MultiprotocolExtensionsCapability),
+    #[cfg(feature = "rfc2918")]
+    RouteRefresh,
     Unknown {
         code: u8,
         data: Vec<u8>,
@@ -39,6 +41,8 @@ impl BGPElement for Capability {
             input,
             match code {
                 1 => Self::MultiprotocolExtensions(MultiprotocolExtensionsCapability::unpack(data)?.1),
+                #[cfg(feature = "rfc2918")]
+                2 => Self::RouteRefresh,
                 _ => Self::Unknown { code, data: data.to_vec() },
             },
         ))
@@ -51,6 +55,11 @@ impl BGPElement for Capability {
                 buffer.extend_from_slice(&1_u8.to_be_bytes());
                 buffer.extend_from_slice(&4_u8.to_be_bytes());
                 buffer.extend(capability.pack());
+            }
+            #[cfg(feature = "rfc2918")]
+            Self::RouteRefresh => {
+                buffer.extend_from_slice(&2_u8.to_be_bytes());
+                buffer.extend_from_slice(&0_u8.to_be_bytes());
             }
             Self::Unknown { code, data } => {
                 buffer.extend_from_slice(&code.to_be_bytes());
