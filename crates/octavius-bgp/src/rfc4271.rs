@@ -15,11 +15,7 @@ use crate::{
 };
 use alloc::vec::Vec;
 use bitflags::bitflags;
-use core::net::{
-    IpAddr,
-    Ipv4Addr,
-    Ipv6Addr,
-};
+use core::net::Ipv4Addr;
 use nom::{
     bytes::complete::take,
     error::{
@@ -32,7 +28,6 @@ use nom::{
         many_m_n,
     },
     number::complete::{
-        be_u128,
         be_u16,
         be_u32,
         be_u8,
@@ -40,6 +35,7 @@ use nom::{
     IResult,
     Parser,
 };
+use crate::rfc4760::MultiprotocolReachNLRI;
 
 #[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Clone, Copy, Hash)]
 pub struct BGPMessageHeader {
@@ -322,7 +318,9 @@ pub enum PathAttribute {
         address: Ipv4Addr,
     },
     #[cfg(feature = "rfc4760")]
-    MpUnreachableNlri(MultiprotocolUnreachNLRI),
+    MpReachNlri(MultiprotocolReachNLRI),
+    #[cfg(feature = "rfc4760")]
+    MpUnreachNlri(MultiprotocolUnreachNLRI),
     Unknown {
         kind: u8,
         flags: PathAttributeFlags,
@@ -381,7 +379,9 @@ impl BGPElement for PathAttribute {
                     }
                 }
                 #[cfg(feature = "rfc4760")]
-                15 => Self::MpUnreachableNlri(MultiprotocolUnreachNLRI::unpack(input)?.1),
+                14 => Self::MpReachNlri(MultiprotocolReachNLRI::unpack(input)?.1),
+                #[cfg(feature = "rfc4760")]
+                15 => Self::MpUnreachNlri(MultiprotocolUnreachNLRI::unpack(input)?.1),
                 _ => {
                     Self::Unknown {
                         kind,
@@ -410,19 +410,14 @@ impl BGPElement for PathAttribute {
                 buffer.extend_from_slice(&(as_path.len() as u8).to_be_bytes());
                 buffer.extend(as_path);
             }
-            Self::NextHop(next_hop_addr) => {
+            Self::NextHop(next_hop) => {
                 buffer.extend_from_slice(&PathAttributeFlags::TRANSITIVE.bits().to_be_bytes());
                 buffer.extend_from_slice(&3_u8.to_be_bytes());
-                match next_hop_addr {
-                    IpAddr::V4(ipv4_addr) => {
-                        buffer.extend_from_slice(&4_u8.to_be_bytes());
-                        buffer.extend_from_slice(&ipv4_addr.octets());
-                    }
-                    IpAddr::V6(ipv6_addr) => {
-                        buffer.extend_from_slice(&16_u8.to_be_bytes());
-                        buffer.extend_from_slice(&ipv6_addr.octets());
-                    }
-                }
+
+                let mut next_hop_buffer = Vec::new();
+                next_hop_buffer.extend(next_hop.pack());
+                buffer.extend_from_slice(&(next_hop_buffer.len() as u8).to_be_bytes());
+                buffer.extend(next_hop_buffer);
             }
             Self::MultiExitDisc(multi_exit_disc) => {
                 buffer.extend_from_slice(&PathAttributeFlags::OPTIONAL.bits().to_be_bytes());
@@ -454,7 +449,16 @@ impl BGPElement for PathAttribute {
                 buffer.extend_from_slice(&address.octets());
             }
             #[cfg(feature = "rfc4760")]
-            Self::MpUnreachableNlri(attribute) => {
+            Self::MpReachNlri(attribute) => {
+                buffer.extend_from_slice(&PathAttributeFlags::OPTIONAL.bits().to_be_bytes());
+                buffer.extend_from_slice(&15_u8.to_be_bytes());
+
+                let body = attribute.pack();
+                buffer.extend_from_slice(&(body.len() as u8).to_be_bytes());
+                buffer.extend(body);
+            }
+            #[cfg(feature = "rfc4760")]
+            Self::MpUnreachNlri(attribute) => {
                 buffer.extend_from_slice(&PathAttributeFlags::OPTIONAL.bits().to_be_bytes());
                 buffer.extend_from_slice(&15_u8.to_be_bytes());
 

@@ -56,6 +56,7 @@ use alloc::vec::Vec;
 use core::net::IpAddr;
 use nom::{
     bytes::complete::take,
+    number::complete::be_u8,
     IResult,
 };
 
@@ -132,6 +133,7 @@ impl BGPMessage {
 
 /// This struct implements the next hop attribute/parameter for the basic BGP implementation and the Multiprotocol extension form of the
 /// next hop.
+#[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Hash, Clone, Copy)]
 pub struct NextHop {
     pub next_hop: IpAddr,
     #[cfg(feature = "rfc4760")]
@@ -140,14 +142,20 @@ pub struct NextHop {
 
 impl NextHop {
     pub fn unpack(input: &[u8], addr_family: AddressFamily, extended: bool) -> IResult<&[u8], Self> {
-        let (input, next_hop) = unpack_ip_address(input, addr_family)?;
+        let (input, data) = if extended {
+            let (input, length) = be_u8(input)?;
+            take(length)(input)?
+        } else {
+            (&[] as &[u8], input)
+        };
+        let (data, next_hop) = unpack_ip_address(data, addr_family)?;
         Ok((
-            &[],
+            input,
             Self {
                 next_hop,
                 #[cfg(feature = "rfc4760")]
                 link_local_address: if extended && addr_family == AddressFamily::IPv6 {
-                    Some(unpack_ip_address(input, addr_family)?.1)
+                    Some(unpack_ip_address(data, addr_family)?.1)
                 } else {
                     None
                 },
@@ -157,6 +165,7 @@ impl NextHop {
 
     fn pack(&self) -> Vec<u8> {
         let mut buffer = Vec::new();
+
         match self.next_hop {
             IpAddr::V4(addr) => buffer.extend_from_slice(&addr.octets()),
             IpAddr::V6(addr) => buffer.extend_from_slice(&addr.octets()),
@@ -168,8 +177,11 @@ impl NextHop {
                 IpAddr::V4(addr) => buffer.extend_from_slice(&addr.octets()),
                 IpAddr::V6(addr) => buffer.extend_from_slice(&addr.octets()),
             }
-        }
 
-        buffer
+            let mut final_buffer = Vec::new();
+            final_buffer.extend_from_slice(&(buffer.len() as u8).to_be_bytes());
+            final_buffer.extend(buffer);
+            final_buffer
+        } else {buffer}
     }
 }

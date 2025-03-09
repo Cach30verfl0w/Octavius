@@ -9,10 +9,12 @@ use crate::{
     },
     type_enum,
     BGPElement,
+    NextHop,
 };
 use alloc::vec::Vec;
 use nom::{
     multi::many0,
+    number::complete::be_u8,
     IResult,
     Parser,
 };
@@ -27,6 +29,51 @@ type_enum! {
     pub enum SubsequentAddressFamily: be_u8(u8) {
         Unicast = 1,
         Multicast = 2
+    }
+}
+
+/// This struct represents the multiprotocol reachable path attribute defined by the Multiprotocol Extensions for BGP as an optional and
+/// non-transitive attribute. It's used to advertise a route to a peer or to permit a router to advertise the network layer address of the
+/// router.
+///
+/// ## References
+/// - [Multiprotocol Reachable NLRI - MP_REACH_NLRI, Section 3 RFC 4760](https://datatracker.ietf.org/doc/html/rfc4760#section-3)
+#[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Hash, Clone)]
+pub struct MultiprotocolReachNLRI {
+    pub address_family: AddressFamily,
+    pub subsequent_address_family: SubsequentAddressFamily,
+    pub next_hop: NextHop,
+    pub nlri: Vec<Prefix>,
+}
+
+impl BGPElement for MultiprotocolReachNLRI {
+    fn unpack(input: &[u8]) -> IResult<&[u8], Self>
+    where
+        Self: Sized,
+    {
+        let (input, address_family) = AddressFamily::unpack(input)?;
+        let (input, subsequent_address_family) = SubsequentAddressFamily::unpack(input)?;
+        let (input, next_hop) = NextHop::unpack(input, address_family, true)?;
+        let (nlri, _) = be_u8(input)?;
+        let (_, nlri) = many0(|input| Prefix::unpack(input, address_family)).parse(nlri)?;
+        Ok((
+            &[],
+            Self {
+                address_family,
+                subsequent_address_family,
+                next_hop,
+                nlri,
+            },
+        ))
+    }
+
+    fn pack(&self) -> Vec<u8> {
+        let mut buffer = Vec::new();
+        buffer.extend_from_slice(&u8::from(self.address_family).to_be_bytes());
+        buffer.extend_from_slice(&u8::from(self.subsequent_address_family).to_be_bytes());
+        buffer.extend(self.next_hop.pack());
+        self.nlri.iter().for_each(|prefix| buffer.extend(prefix.pack()));
+        buffer
     }
 }
 
