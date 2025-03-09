@@ -12,9 +12,10 @@ readme.workspace = true
 [features]
 default = ["rfc3392", "rfc4760"]
 std = ["nom/std"]
-rfc3392 = [] # Capabilities Advertisement with BGP-4
-rfc4760 = [] # Multiprotocol Extensions for BGP-4
+rfc3392 = []          # Capabilities Advertisement with BGP-4
+rfc4760 = ["rfc3392"] # Multiprotocol Extensions for BGP-4
 
 [dependencies]
 bitflags = "2.9.0"
 nom = { version = "8.0.0", default-features = false, features = ["alloc"] }
+anyhow = "1.0.97"

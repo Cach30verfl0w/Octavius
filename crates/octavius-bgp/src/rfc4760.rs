@@ -32,6 +32,38 @@ type_enum! {
     }
 }
 
+#[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Hash, Clone, Copy)]
+pub struct MultiprotocolExtensionsCapability {
+    pub address_family: AddressFamily,
+    pub subsequent_address_family: SubsequentAddressFamily,
+}
+
+impl BGPElement for MultiprotocolExtensionsCapability {
+    fn unpack(input: &[u8]) -> IResult<&[u8], Self>
+    where
+        Self: Sized,
+    {
+        let (input, address_family) = AddressFamily::unpack(input)?;
+        let (input, _) = be_u8(input)?;
+        let (input, subsequent_address_family) = SubsequentAddressFamily::unpack(input)?;
+        Ok((
+            input,
+            Self {
+                address_family,
+                subsequent_address_family,
+            },
+        ))
+    }
+
+    fn pack(&self) -> Vec<u8> {
+        let mut buffer = Vec::new();
+        buffer.extend_from_slice(&u16::from(self.address_family).to_be_bytes());
+        buffer.extend_from_slice(&0_u8.to_be_bytes());
+        buffer.extend_from_slice(&u8::from(self.subsequent_address_family).to_be_bytes());
+        buffer
+    }
+}
+
 /// This struct represents the multiprotocol reachable path attribute defined by the Multiprotocol Extensions for BGP as an optional and
 /// non-transitive attribute. It's used to advertise a route to a peer or to permit a router to advertise the network layer address of the
 /// router.
@@ -69,9 +101,10 @@ impl BGPElement for MultiprotocolReachNLRI {
 
     fn pack(&self) -> Vec<u8> {
         let mut buffer = Vec::new();
-        buffer.extend_from_slice(&u8::from(self.address_family).to_be_bytes());
+        buffer.extend_from_slice(&u16::from(self.address_family).to_be_bytes());
         buffer.extend_from_slice(&u8::from(self.subsequent_address_family).to_be_bytes());
         buffer.extend(self.next_hop.pack());
+        buffer.extend_from_slice(&0_u8.to_be_bytes());
         self.nlri.iter().for_each(|prefix| buffer.extend(prefix.pack()));
         buffer
     }
@@ -110,7 +143,7 @@ impl BGPElement for MultiprotocolUnreachNLRI {
 
     fn pack(&self) -> Vec<u8> {
         let mut buffer = Vec::new();
-        buffer.extend_from_slice(&u8::from(self.address_family).to_be_bytes());
+        buffer.extend_from_slice(&u16::from(self.address_family).to_be_bytes());
         buffer.extend_from_slice(&u8::from(self.subsequent_address_family).to_be_bytes());
         let mut withdrawn_routes_buffer = Vec::new();
         self.withdrawn_routes

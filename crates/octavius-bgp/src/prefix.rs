@@ -11,6 +11,7 @@ use core::{
         Ipv4Addr,
         Ipv6Addr,
     },
+    str::FromStr,
 };
 use nom::{
     bytes::streaming::take,
@@ -29,7 +30,7 @@ type_enum! {
     /// ## References
     /// - [Address Family Numbers, IANA](https://www.iana.org/assignments/address-family-numbers/address-family-numbers.xhtml)
     #[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Hash, Clone, Copy)]
-    pub enum AddressFamily: be_u8(u8) {
+    pub enum AddressFamily: be_u16(u16) {
         IPv4 = 1,
         IPv6 = 2
     }
@@ -39,6 +40,18 @@ type_enum! {
 pub struct Prefix {
     address: IpAddr,
     mask: u8,
+}
+
+impl FromStr for Prefix {
+    type Err = anyhow::Error;
+
+    fn from_str(string: &str) -> Result<Self, Self::Err> {
+        let (addr, mask) = string.split_once("/").ok_or(anyhow::Error::msg("Expected <address>/<mask>"))?;
+        Ok(Self {
+            address: IpAddr::from_str(addr)?,
+            mask: mask.parse()?,
+        })
+    }
 }
 
 impl Display for Prefix {

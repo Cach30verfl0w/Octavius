@@ -10,6 +10,7 @@ use crate::{
         AddressFamily,
         Prefix,
     },
+    rfc4760::MultiprotocolReachNLRI,
     BGPElement,
     NextHop,
 };
@@ -35,7 +36,6 @@ use nom::{
     IResult,
     Parser,
 };
-use crate::rfc4760::MultiprotocolReachNLRI;
 
 #[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Clone, Copy, Hash)]
 pub struct BGPMessageHeader {
@@ -347,20 +347,20 @@ impl BGPElement for PathAttribute {
             be_u16(input)?
         };
 
-        let (input, data) = take(length)(input)?;
+        let (remaining, input) = take(length)(input)?;
         Ok((
-            input,
+            remaining,
             match kind {
-                1 => Self::Origin(Origin::from(be_u8(data)?.1)),
-                2 => Self::AsPath(ASPathSegment::unpack(data)?.1),
+                1 => Self::Origin(Origin::from(be_u8(input)?.1)),
+                2 => Self::AsPath(ASPathSegment::unpack(input)?.1),
                 3 => Self::NextHop(NextHop::unpack(input, if length == 16 { AddressFamily::IPv6 } else { AddressFamily::IPv4 }, false)?.1),
-                4 => Self::MultiExitDisc(be_u32(data)?.1),
-                5 => Self::LocalPref(be_u32(data)?.1),
+                4 => Self::MultiExitDisc(be_u32(input)?.1),
+                5 => Self::LocalPref(be_u32(input)?.1),
                 6 => Self::AtomicAggregate,
                 7 => {
                     match length {
                         6 => {
-                            let (data, asn) = be_u16(data)?;
+                            let (data, asn) = be_u16(input)?;
                             let (_, addr) = be_u32(data)?;
                             Self::Aggregator {
                                 asn: asn as _,
@@ -368,7 +368,7 @@ impl BGPElement for PathAttribute {
                             }
                         }
                         8 => {
-                            let (data, asn) = be_u32(data)?;
+                            let (data, asn) = be_u32(input)?;
                             let (_, addr) = be_u32(data)?;
                             Self::Aggregator {
                                 asn,
@@ -386,7 +386,7 @@ impl BGPElement for PathAttribute {
                     Self::Unknown {
                         kind,
                         flags,
-                        data: data.to_vec(),
+                        data: input.to_vec(),
                     }
                 }
             },

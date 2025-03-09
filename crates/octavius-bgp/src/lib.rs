@@ -11,7 +11,7 @@
 //! | [RFC 4271](https://datatracker.ietf.org/doc/html/rfc4271) | A Border Gateway Protocol 4 (BGP-4)         | Implemented |
 //! | [RFC 4370](https://datatracker.ietf.org/doc/html/rfc4360) | BGP Extended Communities Attribute          | Planned     |
 //! | [RFC 4724](https://datatracker.ietf.org/doc/html/rfc4724) | Graceful Restart Mechanism for BGP          | Planned     |
-//! | [RFC 4760](https://datatracker.ietf.org/doc/html/rfc4760) | Multiprotocol Extensions for BGP-4          | Planned     |
+//! | [RFC 4760](https://datatracker.ietf.org/doc/html/rfc4760) | Multiprotocol Extensions for BGP-4          | Implemented |
 //! | [RFC 5549](https://datatracker.ietf.org/doc/html/rfc5549) | Advertising IPv4 NLRI with an IPv6 Next Hop | Planned     |
 //! | [RFC 5668](https://datatracker.ietf.org/doc/html/rfc5668) | 4-Octet AS-specific BGP Extended Community  | Planned     |
 //! | [RFC 6793](https://datatracker.ietf.org/doc/html/rfc6793) | BGP Support for Four-Octet AS Numbers       | Planned     |
@@ -33,12 +33,15 @@
 #![no_std]
 extern crate alloc;
 
+#[cfg(feature = "std")] extern crate std;
+
 pub(crate) mod macros;
 
 pub mod prefix;
 #[cfg(feature = "rfc3392")] pub mod rfc3392;
 pub mod rfc4271;
 #[cfg(feature = "rfc4760")] pub mod rfc4760;
+#[cfg(all(feature = "std", test))] pub mod test;
 
 use crate::{
     prefix::{
@@ -56,6 +59,7 @@ use alloc::vec::Vec;
 use core::net::IpAddr;
 use nom::{
     bytes::complete::take,
+    multi::many1,
     number::complete::be_u8,
     IResult,
 };
@@ -81,7 +85,7 @@ pub enum BGPMessage {
 impl BGPElement for BGPMessage {
     fn unpack(input: &[u8]) -> IResult<&[u8], Self> {
         let (input, header) = BGPMessageHeader::unpack(input)?;
-        let (input, message) = take(header.length as usize)(input)?;
+        let (input, message) = take((header.length - 19) as usize)(input)?;
         Ok((
             input,
             match header.kind {
@@ -120,6 +124,12 @@ impl BGPElement for BGPMessage {
 }
 
 impl BGPMessage {
+    #[inline(always)]
+    pub fn unpack_many(input: &[u8]) -> IResult<&[u8], Vec<Self>> {
+        use nom::Parser;
+        many1(BGPMessage::unpack).parse(input)
+    }
+
     fn kind(&self) -> u8 {
         match self {
             Self::Open(_) => 1,
@@ -182,6 +192,8 @@ impl NextHop {
             final_buffer.extend_from_slice(&(buffer.len() as u8).to_be_bytes());
             final_buffer.extend(buffer);
             final_buffer
-        } else {buffer}
+        } else {
+            buffer
+        }
     }
 }
