@@ -23,7 +23,10 @@ use nom::{
     IResult,
     Parser,
 };
+use nom::multi::many1;
 use nom::number::complete::be_u128;
+#[cfg(feature = "rfc3392")]
+use crate::rfc3392::Capability;
 
 #[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Clone, Copy, Hash)]
 pub struct BGPMessageHeader {
@@ -55,6 +58,57 @@ impl BGPElement for BGPMessageHeader {
     }
 }
 
+/// Optional parameters are sent with the open message of the BGP router to tell the other peer some extra information. A.e. the router's
+/// capability list is sent as a optional parameter.
+///
+/// ## References
+/// - [OPEN Message Format, Section 4.2 RFC 4271](https://datatracker.ietf.org/doc/html/rfc4271#section-4.2)
+#[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Hash, Clone)]
+pub enum OptionalParameter {
+    #[cfg(feature = "rfc3392")]
+    Capabilities(Vec<Capability>),
+    Unknown { kind: u8, data: Vec<u8> }
+}
+
+impl BGPElement for OptionalParameter {
+    fn unpack(input: &[u8]) -> IResult<&[u8], Self>
+    where
+        Self: Sized,
+    {
+        let (input, kind) = be_u8(input)?;
+        let (input, length) = be_u8(input)?;
+        let (input, data) = take(length as usize)(input)?;
+        Ok((input, match kind {
+            #[cfg(feature = "rfc3392")]
+            2 => Self::Capabilities(many1(Capability::unpack).parse(data)?.1),
+            _ => Self::Unknown { kind, data: data.to_vec() }
+        }))
+    }
+
+    fn pack(&self) -> Vec<u8> {
+        let mut buffer = Vec::new();
+        match self {
+            #[cfg(feature = "rfc3392")]
+            Self::Capabilities(capabilities) => {
+                let mut capabilities_data = Vec::new();
+                for capability in capabilities {
+                    capabilities_data.extend(capability.pack());
+                }
+
+                buffer.extend_from_slice(&1_u8.to_be_bytes());
+                buffer.extend_from_slice(&(capabilities_data.len() as u8).to_be_bytes());
+                buffer.extend(capabilities_data);
+            }
+            Self::Unknown { kind, data } => {
+                buffer.extend_from_slice(&kind.to_be_bytes());
+                buffer.extend_from_slice(&(data.len() as u8).to_be_bytes());
+                buffer.extend(data);
+            }
+        }
+        buffer
+    }
+}
+
 /// This struct represents the BGP open message. The open message is sent between two BGP peers to initialize the connection and exchange
 /// information about the router (supported extensions/capabilities etc.) to the other peer. It contains the BGP protocol version, this
 /// library only supports BGP-4.
@@ -67,7 +121,7 @@ pub struct OpenMessage {
     pub autonomous_system: u16,
     pub hold_time: u16,
     pub bgp_identifier: u32,
-    pub optional_parameters: Vec<u8>,
+    pub optional_parameters: Vec<OptionalParameter>,
 }
 
 impl BGPElement for OpenMessage {
@@ -88,7 +142,7 @@ impl BGPElement for OpenMessage {
                 autonomous_system,
                 hold_time,
                 bgp_identifier,
-                optional_parameters: optional_parameters.to_vec(),
+                optional_parameters: many0(OptionalParameter::unpack).parse(optional_parameters)?.1,
             },
         ))
     }
@@ -99,8 +153,13 @@ impl BGPElement for OpenMessage {
         buffer.extend_from_slice(&self.autonomous_system.to_be_bytes());
         buffer.extend_from_slice(&self.hold_time.to_be_bytes());
         buffer.extend_from_slice(&self.bgp_identifier.to_be_bytes());
-        buffer.extend_from_slice(&(self.optional_parameters.len() as u8).to_be_bytes());
-        buffer.extend_from_slice(&self.optional_parameters);
+
+        let mut optional_parameters_data = Vec::new();
+        for optional_parameter in &self.optional_parameters {
+            optional_parameters_data.extend(optional_parameter.pack());
+        }
+        buffer.extend_from_slice(&(optional_parameters_data.len() as u8).to_be_bytes());
+        buffer.extend(optional_parameters_data);
         buffer
     }
 }
