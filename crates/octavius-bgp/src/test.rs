@@ -1,10 +1,50 @@
+mod base {
+    use crate::{
+        prefix::Prefix,
+        rfc4271::{
+            ASPathSegment,
+            Origin,
+            PathAttribute,
+        },
+        BGPElement,
+        BGPMessage,
+        NextHop,
+    };
+    use core::str::FromStr;
+    use std::{
+        net::IpAddr,
+        vec,
+    };
+
+    #[test]
+    fn test_update_message() {
+        let BGPMessage::Update(update_message) = BGPMessage::unpack(include_bytes!("../test_data/0/packet_6.bin")).unwrap().1 else {
+            panic!("Message is not an update message");
+        };
+
+        let path_attributes = &update_message.path_attributes;
+        assert_eq!(path_attributes[0], PathAttribute::Origin(Origin::IGP));
+        assert_eq!(path_attributes[1], PathAttribute::AsPath(ASPathSegment::Sequence(vec![65002])));
+        assert_eq!(
+            path_attributes[2],
+            PathAttribute::NextHop(NextHop {
+                next_hop: IpAddr::from_str("192.168.2.200").unwrap(),
+                link_local_address: None
+            })
+        );
+
+        let nlri = &update_message.nlri;
+        assert_eq!(nlri[0], Prefix::from_str("192.168.100.0/24").unwrap());
+    }
+}
+
 mod multiprotocol_extensions {
     use crate::{
         prefix::{
             AddressFamily,
             Prefix,
         },
-        rfc3392::Capability::MultiprotocolExtensions,
+        rfc3392::Capability,
         rfc4271::{
             OptionalParameter,
             PathAttribute,
@@ -38,14 +78,14 @@ mod multiprotocol_extensions {
 
         assert_eq!(
             capabilities[0],
-            MultiprotocolExtensions(MultiprotocolExtensionsCapability {
+            Capability::MultiprotocolExtensions(MultiprotocolExtensionsCapability {
                 address_family: AddressFamily::IPv4,
                 subsequent_address_family: SubsequentAddressFamily::Unicast
             })
         );
         assert_eq!(
             capabilities[1],
-            MultiprotocolExtensions(MultiprotocolExtensionsCapability {
+            Capability::MultiprotocolExtensions(MultiprotocolExtensionsCapability {
                 address_family: AddressFamily::IPv6,
                 subsequent_address_family: SubsequentAddressFamily::Unicast
             })
@@ -58,13 +98,11 @@ mod multiprotocol_extensions {
         let BGPMessage::Update(update_message) = messages.get(1).unwrap() else {
             panic!("Message is not an update message");
         };
-        let PathAttribute::MpReachNlri(nlri) = update_message.path_attributes.get(0).unwrap() else {
-            panic!("First path attribute isn't a MP NLRI");
-        };
 
+        let path_attributes = &update_message.path_attributes;
         assert_eq!(
-            *nlri,
-            MultiprotocolReachNLRI {
+            path_attributes[0],
+            PathAttribute::MpReachNlri(MultiprotocolReachNLRI {
                 address_family: AddressFamily::IPv6,
                 subsequent_address_family: SubsequentAddressFamily::Unicast,
                 next_hop: NextHop {
@@ -75,7 +113,7 @@ mod multiprotocol_extensions {
                     Prefix::from_str("fdb3:3458:e9b1:eab9::/64").unwrap(),
                     Prefix::from_str("fd8b:c81d:be40:87f0::/64").unwrap()
                 ],
-            }
+            })
         )
     }
 }
