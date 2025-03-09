@@ -1,6 +1,8 @@
 //! This file implemented the [RFC 4271 - A Border Gateway Protocol 4 (BGP-4)](https://datatracker.ietf.org/doc/html/rfc4271), the base RFC
 //! of the BGP protocol which is specifying the base of the protocol.
 
+#[cfg(feature = "rfc1997")]
+use crate::rfc1997::Community;
 #[cfg(feature = "rfc3392")]
 use crate::rfc3392::Capability;
 #[cfg(feature = "rfc4760")]
@@ -321,6 +323,10 @@ pub enum PathAttribute {
     MpReachNlri(MultiprotocolReachNLRI),
     #[cfg(feature = "rfc4760")]
     MpUnreachNlri(MultiprotocolUnreachNLRI),
+    #[cfg(feature = "rfc1997")]
+    Communities(Vec<Community>),
+    #[cfg(feature = "rfc4360")]
+    ExtendedCommunities(Vec<Community>),
     Unknown {
         kind: u8,
         flags: PathAttributeFlags,
@@ -378,10 +384,14 @@ impl BGPElement for PathAttribute {
                         _ => return Err(nom::Err::Error(Error::new(input, ErrorKind::Fail))),
                     }
                 }
+                #[cfg(feature = "rfc1997")]
+                8 => Self::Communities(many1(|input| Community::unpack(input, false)).parse(input)?.1),
                 #[cfg(feature = "rfc4760")]
                 14 => Self::MpReachNlri(MultiprotocolReachNLRI::unpack(input)?.1),
                 #[cfg(feature = "rfc4760")]
                 15 => Self::MpUnreachNlri(MultiprotocolUnreachNLRI::unpack(input)?.1),
+                #[cfg(feature = "rfc4360")]
+                16 => Self::ExtendedCommunities(many1(|input| Community::unpack(input, true)).parse(input)?.1),
                 _ => {
                     Self::Unknown {
                         kind,
@@ -465,6 +475,24 @@ impl BGPElement for PathAttribute {
                 let body = attribute.pack();
                 buffer.extend_from_slice(&(body.len() as u8).to_be_bytes());
                 buffer.extend(body);
+            }
+            #[cfg(feature = "rfc1997")]
+            Self::Communities(communities) => {
+                buffer.extend_from_slice(&(PathAttributeFlags::OPTIONAL | PathAttributeFlags::TRANSITIVE).bits().to_be_bytes());
+                buffer.extend_from_slice(&7_u8.to_be_bytes());
+                let mut communities_buffer = Vec::new();
+                communities.iter().for_each(|community| communities_buffer.extend(community.pack()));
+                buffer.extend_from_slice(&(communities_buffer.len() as u8).to_be_bytes());
+                buffer.extend(communities_buffer);
+            }
+            #[cfg(feature = "rfc4360")]
+            Self::ExtendedCommunities(communities) => {
+                buffer.extend_from_slice(&(PathAttributeFlags::OPTIONAL | PathAttributeFlags::TRANSITIVE).bits().to_be_bytes());
+                buffer.extend_from_slice(&16_u8.to_be_bytes());
+                let mut communities_buffer = Vec::new();
+                communities.iter().for_each(|community| communities_buffer.extend(community.pack()));
+                buffer.extend_from_slice(&(communities_buffer.len() as u8).to_be_bytes());
+                buffer.extend(communities_buffer);
             }
             Self::Unknown { kind, flags, data } => {
                 let use_extended_length = data.len() > u8::MAX as _;

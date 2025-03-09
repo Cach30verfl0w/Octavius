@@ -5,15 +5,15 @@
 //! ## RFCs currently implemented or planned to be implemented
 //! | RFC                                                       | Title                                       | Status      |
 //! |-----------------------------------------------------------|---------------------------------------------|-------------|
-//! | [RFC 1997](https://datatracker.ietf.org/doc/html/rfc1997) | BGP Communities Attribute                   | Planned     |
+//! | [RFC 1997](https://datatracker.ietf.org/doc/html/rfc1997) | BGP Communities Attribute                   | Implemented |
 //! | [RFC 2918](https://datatracker.ietf.org/doc/html/rfc2918) | Route Refresh Capability for BGP-4          | Planned     |
 //! | [RFC 3392](https://datatracker.ietf.org/doc/html/rfc3392) | Capabilities Advertisement with BGP-4       | Implemented |
 //! | [RFC 4271](https://datatracker.ietf.org/doc/html/rfc4271) | A Border Gateway Protocol 4 (BGP-4)         | Implemented |
-//! | [RFC 4370](https://datatracker.ietf.org/doc/html/rfc4360) | BGP Extended Communities Attribute          | Planned     |
+//! | [RFC 4370](https://datatracker.ietf.org/doc/html/rfc4360) | BGP Extended Communities Attribute          | Implemented |
 //! | [RFC 4724](https://datatracker.ietf.org/doc/html/rfc4724) | Graceful Restart Mechanism for BGP          | Planned     |
 //! | [RFC 4760](https://datatracker.ietf.org/doc/html/rfc4760) | Multiprotocol Extensions for BGP-4          | Implemented |
 //! | [RFC 5549](https://datatracker.ietf.org/doc/html/rfc5549) | Advertising IPv4 NLRI with an IPv6 Next Hop | Planned     |
-//! | [RFC 5668](https://datatracker.ietf.org/doc/html/rfc5668) | 4-Octet AS-specific BGP Extended Community  | Planned     |
+//! | [RFC 5668](https://datatracker.ietf.org/doc/html/rfc5668) | 4-Octet AS-specific BGP Extended Community  | Implemented |
 //! | [RFC 6793](https://datatracker.ietf.org/doc/html/rfc6793) | BGP Support for Four-Octet AS Numbers       | Planned     |
 //! | [RFC 7313](https://datatracker.ietf.org/doc/html/rfc7313) | Enhanced Route Refresh Capability           | Planned     |
 //! | [RFC 7606](https://datatracker.ietf.org/doc/html/rfc7606) | Revised Error Handling for BGP UPDATE       | Planned     |
@@ -37,9 +37,13 @@ extern crate alloc;
 
 pub(crate) mod macros;
 
+// BGP base
 pub mod prefix;
-#[cfg(feature = "rfc3392")] pub mod rfc3392;
 pub mod rfc4271;
+
+// BGP Extensions
+#[cfg(feature = "rfc1997")] pub mod rfc1997;
+#[cfg(feature = "rfc3392")] pub mod rfc3392;
 #[cfg(feature = "rfc4760")] pub mod rfc4760;
 #[cfg(all(feature = "std", test))] pub mod test;
 

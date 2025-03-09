@@ -10,10 +10,13 @@ edition.workspace = true
 readme.workspace = true
 
 [features]
-default = ["rfc3392", "rfc4760"]
+default = ["rfc1997", "rfc3392", "rfc4760", "rfc5668"]
 std = ["nom/std"]
+rfc1997 = []          # BGP Communities Attribute
 rfc3392 = []          # Capabilities Advertisement with BGP-4
+rfc4360 = ["rfc1997"] # BGP Extended Communities Attribute
 rfc4760 = ["rfc3392"] # Multiprotocol Extensions for BGP-4
+rfc5668 = ["rfc4360"] # 4-Octet AS-specific BGP Extended Community
 
 [dependencies]
 bitflags = "2.9.0"

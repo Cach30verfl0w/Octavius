@@ -38,6 +38,61 @@ mod base {
     }
 }
 
+mod communities {
+    use crate::{
+        rfc1997::{
+            Assignment,
+            Community,
+            CommunityFlags,
+        },
+        rfc4271::PathAttribute,
+        BGPMessage,
+    };
+    use std::vec;
+
+    #[test]
+    fn test_update_message_with_communities() {
+        let messages = BGPMessage::unpack_many(include_bytes!("../test_data/2/packet_7.bin")).unwrap().1;
+        let BGPMessage::Update(update_message) = messages.get(1).unwrap() else {
+            panic!("Message is not an update message");
+        };
+
+        let path_attributes = &update_message.path_attributes;
+        assert_eq!(
+            path_attributes[3],
+            PathAttribute::Communities(vec![
+                Community::RFC1997 {
+                    global_administrator: 65001,
+                    local_administrator: 1
+                },
+                Community::RFC1997 {
+                    global_administrator: 65535,
+                    local_administrator: 65281
+                }
+            ])
+        );
+    }
+
+    #[test]
+    fn test_update_message_with_extended_communities() {
+        let messages = BGPMessage::unpack_many(include_bytes!("../test_data/2/packet_7.bin")).unwrap().1;
+        let BGPMessage::Update(update_message) = messages.get(1).unwrap() else {
+            panic!("Message is not an update message");
+        };
+
+        let path_attributes = &update_message.path_attributes;
+        assert_eq!(
+            path_attributes[4],
+            PathAttribute::ExtendedCommunities(vec![Community::RFC4360ASN {
+                subkind: Assignment::RouteTarget,
+                flags: CommunityFlags::empty(),
+                global_administrator: 65001,
+                local_administrator: 200
+            }])
+        );
+    }
+}
+
 mod multiprotocol_extensions {
     use crate::{
         prefix::{
