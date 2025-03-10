@@ -1,17 +1,12 @@
-use crate::type_enum;
+use crate::ParameterizedBGPElement;
 use alloc::vec::Vec;
 use core::{
     cmp::min,
-    fmt::{
-        Display,
-        Formatter,
-    },
     net::{
         IpAddr,
         Ipv4Addr,
         Ipv6Addr,
     },
-    str::FromStr,
 };
 use nom::{
     bytes::streaming::take,
@@ -21,6 +16,10 @@ use nom::{
     },
     number::complete::be_u8,
     IResult,
+};
+use octavius_common::{
+    type_enum,
+    Prefix,
 };
 
 type_enum! {
@@ -49,44 +48,22 @@ type_enum! {
     }
 }
 
-#[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Hash, Clone, Copy)]
-pub struct Prefix {
-    address: IpAddr,
-    mask: u8,
-}
+impl ParameterizedBGPElement for Prefix {
+    type Parameter = AddressFamily;
 
-impl FromStr for Prefix {
-    type Err = anyhow::Error;
-
-    fn from_str(string: &str) -> Result<Self, Self::Err> {
-        let (addr, mask) = string.split_once("/").ok_or(anyhow::Error::msg("Expected <address>/<mask>"))?;
-        Ok(Self {
-            address: IpAddr::from_str(addr)?,
-            mask: mask.parse()?,
-        })
-    }
-}
-
-impl Display for Prefix {
-    fn fmt(&self, formatter: &mut Formatter<'_>) -> core::fmt::Result {
-        write!(formatter, "{}/{}", self.address, self.mask)
-    }
-}
-
-impl Prefix {
-    pub fn unpack(input: &[u8], address_family: AddressFamily) -> IResult<&[u8], Prefix> {
+    fn unpack(input: &[u8], parameter: AddressFamily) -> IResult<&[u8], Prefix> {
         let (input, mask) = be_u8(input)?;
         let (input, prefix) = take((mask + 7) / 8)(input)?;
         Ok((
             input,
             Prefix {
-                address: unpack_ip_address(prefix, address_family)?.1,
+                address: unpack_ip_address(prefix, parameter)?.1,
                 mask,
             },
         ))
     }
 
-    pub fn pack(&self) -> Vec<u8> {
+    fn pack(&self) -> Vec<u8> {
         let mut buffer = Vec::new();
         buffer.extend_from_slice(&self.mask.to_be_bytes());
         match self.address {

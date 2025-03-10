@@ -5,11 +5,11 @@
 use crate::{
     prefix::{
         AddressFamily,
-        Prefix,
         SubsequentAddressFamily,
     },
     BGPElement,
     NextHop,
+    ParameterizedBGPElement,
 };
 use alloc::vec::Vec;
 use nom::{
@@ -18,6 +18,7 @@ use nom::{
     IResult,
     Parser,
 };
+use octavius_common::Prefix;
 
 #[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Hash, Clone, Copy)]
 pub struct MultiprotocolExtensionsCapability {

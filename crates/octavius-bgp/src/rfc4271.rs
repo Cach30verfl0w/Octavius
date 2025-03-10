@@ -8,13 +8,11 @@ use crate::rfc3392::Capability;
 #[cfg(feature = "rfc4760")]
 use crate::rfc4760::MultiprotocolUnreachNLRI;
 use crate::{
-    prefix::{
-        AddressFamily,
-        Prefix,
-    },
+    prefix::AddressFamily,
     rfc4760::MultiprotocolReachNLRI,
     BGPElement,
     NextHop,
+    ParameterizedBGPElement,
 };
 use alloc::vec::Vec;
 use bitflags::bitflags;
@@ -38,6 +36,7 @@ use nom::{
     IResult,
     Parser,
 };
+use octavius_common::Prefix;
 
 #[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Clone, Copy, Hash)]
 pub struct BGPMessageHeader {

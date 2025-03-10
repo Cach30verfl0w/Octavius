@@ -5,11 +5,11 @@ use crate::{
     },
     BGPElement,
 };
+use alloc::vec::Vec;
 use nom::{
     number::complete::be_u8,
     IResult,
 };
-use std::prelude::rust_2015::Vec;
 
 /// This message tells the BGP peer to resend all routes matching the specified address family context. It is used to update filters and
 /// policies without establishing a new BGP connection.
@@ -41,5 +41,6 @@ impl BGPElement for RouteRefreshMessage {
         buffer.extend_from_slice(&u16::from(self.address_family).to_be_bytes());
         buffer.extend_from_slice(&0_u8.to_be_bytes());
         buffer.extend_from_slice(&u8::from(self.subsequent_address_family).to_be_bytes());
+        buffer
     }
 }

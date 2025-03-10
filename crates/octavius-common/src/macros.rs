@@ -1,4 +1,13 @@
 #[macro_export]
+macro_rules! next_enum_of {
+    ($vec: expr, $variant: pat => $map_fn: expr) => {
+        $vec.iter()
+            .filter_map(|x| if let $variant = x { Some($map_fn) } else { None })
+            .next()
+    };
+}
+
+#[macro_export]
 macro_rules! type_enum {
     (
         $(#[$outer:meta])*

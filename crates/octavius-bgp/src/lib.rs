@@ -33,10 +33,6 @@
 #![no_std]
 extern crate alloc;
 
-#[cfg(feature = "std")] extern crate std;
-
-pub(crate) mod macros;
-
 // BGP base
 pub mod prefix;
 pub mod rfc4271;
@@ -71,10 +67,20 @@ use nom::{
     IResult,
 };
 
-pub trait BGPElement<P = ()> {
+pub trait BGPElement {
     fn unpack(input: &[u8]) -> IResult<&[u8], Self>
     where
         Self: Sized;
+    fn pack(&self) -> Vec<u8>;
+}
+
+pub trait ParameterizedBGPElement {
+    type Parameter;
+
+    fn unpack(input: &[u8], parameter: Self::Parameter) -> IResult<&[u8], Self>
+    where
+        Self: Sized;
+
     fn pack(&self) -> Vec<u8>;
 }
 

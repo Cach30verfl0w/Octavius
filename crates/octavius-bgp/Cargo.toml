@@ -20,6 +20,8 @@ rfc4760 = ["rfc3392"] # Multiprotocol Extensions for BGP-4
 rfc5668 = ["rfc4360"] # 4-Octet AS-specific BGP Extended Community
 
 [dependencies]
+octavius-common.workspace = true
+
 bitflags = "2.9.0"
 nom = { version = "8.0.0", default-features = false, features = ["alloc"] }
 anyhow = "1.0.97"

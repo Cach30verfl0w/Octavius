@@ -12,8 +12,9 @@
 //! - [RFC 4360 "BGP Extended Communities Attribute"](https://datatracker.ietf.org/doc/html/rfc4360)
 //! - [RFC 5668 "4-Octet AS-specific BGP Extended Community"](https://datatracker.ietf.org/doc/html/rfc5668)
 
-use crate::type_enum;
+use alloc::vec::Vec;
 use bitflags::bitflags;
+use core::net::Ipv4Addr;
 use nom::{
     bytes::complete::take,
     number::complete::{
@@ -23,10 +24,7 @@ use nom::{
     },
     IResult,
 };
-use std::{
-    net::Ipv4Addr,
-    prelude::v1::Vec,
-};
+use octavius_common::type_enum;
 
 bitflags! {
     #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash, Copy)]

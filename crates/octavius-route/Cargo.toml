@@ -1,0 +1,21 @@
+[package]
+name = "octavius-route"
+description = "Rust implementation for managing routing tables on Linux and Windows environments"
+categories = ["network-programming"]
+keywords = ["routing", "routing-table", "linux", "windows"]
+license.workspace = true
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+readme.workspace = true
+
+[dependencies]
+octavius-common.workspace = true
+thiserror.workspace = true
+
+rtnetlink = "0.14.1"
+netlink-packet-route = "0.19.0"
+
+winapi = { version = "0.3.9", features = ["iphlpapi", "netioapi", "ipmib"] }
+tokio = { version = "1.44.0", features = ["rt", "rt-multi-thread", "macros"] }
+futures-util = "0.3.31"

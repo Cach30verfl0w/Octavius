@@ -10,3 +10,7 @@ version = "1.0.0"
 authors = ["Cedric Hammes <cach30verfl0w@gmail.com>"]
 edition = "2021"
 readme = "README.md"
+
+[workspace.dependencies]
+octavius-common = { path = "crates/octavius-common" }
+thiserror = "2.0.12"
