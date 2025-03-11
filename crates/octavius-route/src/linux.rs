@@ -79,30 +79,22 @@ impl RouteTable for LinuxRouteTable {
 
                 // The destination of the route (if not present, alternate to 0.0.0.0/0 or equivalent)
                 destination: next_enum_of!(route.attributes, RouteAttribute::Destination(value) => value).map_or(
-                    match route.header.address_family {
-                        AddressFamily::Inet6 => Prefix::ANY_IPV6,
-                        _ => Prefix::ANY_IPV4,
-                    },
+                    None,
                     |addr| {
                         match addr {
                             RouteAddress::Inet(addr) => {
-                                Prefix {
+                                Some(Prefix {
                                     address: IpAddr::V4(addr.clone()),
                                     mask: route.header.destination_prefix_length,
-                                }
+                                })
                             }
                             RouteAddress::Inet6(addr) => {
-                                Prefix {
+                                Some(Prefix {
                                     address: IpAddr::V6(addr.clone()),
                                     mask: route.header.destination_prefix_length,
-                                }
+                                })
                             }
-                            _ => {
-                                match route.header.address_family {
-                                    AddressFamily::Inet6 => Prefix::ANY_IPV6,
-                                    _ => Prefix::ANY_IPV4,
-                                }
-                            }
+                            _ => None
                         }
                     },
                 ),

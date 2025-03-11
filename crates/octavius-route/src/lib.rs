@@ -7,7 +7,7 @@ use std::{
 use thiserror::Error;
 
 #[cfg(target_os = "linux")] pub mod linux;
-#[cfg(target_os = "windows")] pub mod windows;
+#[cfg(target_os = "windows")] pub mod windows_sys;
 
 #[derive(Debug, Error)]
 pub enum RouteError {
@@ -17,9 +17,13 @@ pub enum RouteError {
     #[error("Invalid address type")]
     InvalidAddressType,
 
+    // Platform-specific errors
     #[cfg(target_os = "linux")]
     #[error("Netlink error => {0}")]
     Netlink(#[from] rtnetlink::Error),
+    #[cfg(target_os = "windows")]
+    #[error("Win32 API error => {0}")]
+    Win32(u32)
 }
 
 /// This enum describes the routing protocol that was used to learn this route.
@@ -65,7 +69,7 @@ pub enum RouteProtocol {
 pub struct Route {
     pub protocol: RouteProtocol,
     pub next_hop: Option<IpAddr>,
-    pub destination: Prefix,
+    pub destination: Option<Prefix>,
     pub priority: Option<u32>,
 }
 
