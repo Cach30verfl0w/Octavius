@@ -1,0 +1,22 @@
+[package]
+name = "ocatvius-daemon"
+description = "Octavius is a modern internet routing daemon for BGP"
+license.workspace = true
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+readme.workspace = true
+
+[dependencies]
+tokio = { version = "1.44.1", features = ["full", "parking_lot"] }
+
+# Networking
+mio = { version = "1.0.3", features = ["net", "os-poll"] }
+socket2 = { version = "0.5.8", features = ["all"] }
+
+# Database
+sea-orm = { version = "1.0.0", features = ["sqlx-sqlite", "runtime-tokio-native-tls"]}
+
+# Logging
+log = "0.4.26"
+simple_logger = "5.0.0"
